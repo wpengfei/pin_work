@@ -34,9 +34,14 @@ void update_lastWrite(UINT64 addr, record rec){
             printf("\033[22;36m[update_lastWrite] Same thread, update.\033[0m\n");
         }
         else{
-            printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
-            edge e = {"WAW", lastWrite[addr], rec};
-            result.push_back(e);
+            if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
+                printf("\033[22;36m[update_lastWrite] Both locked.\033[0m\n");
+            }
+            else{
+                printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
+                edge e = {"WAW", lastWrite[addr], rec};
+                result.push_back(e);
+            }
         }
     }
 
@@ -54,9 +59,14 @@ void check_war(UINT64 addr, record rec){
             printf("\033[22;36m[check_war] Same thread, skip.\033[0m\n");
         }
         else{
-            printf("\033[22;36m[check_war] save WAR.\033[0m\n");
-            edge e = {"WAR", lastRead[addr], rec};
-            result.push_back(e);
+            if(lastRead[addr].isLocked == 'L' || rec.isLocked == 'L'){
+                printf("\033[22;36m[check_war] Both locked.\033[0m\n");
+            }
+            else{
+                printf("\033[22;36m[check_war] save WAR.\033[0m\n");
+                edge e = {"WAR", lastRead[addr], rec};
+                result.push_back(e);
+            }
         }
     }
 }
@@ -74,9 +84,14 @@ void check_raw(UINT64 addr, record rec){
             printf("\033[22;36m[check_raw] Same thread, skip.\033[0m\n");
         }
         else{
-            printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
-            edge e = {"RAW", lastWrite[addr], rec};
-            result.push_back(e);
+            if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
+                printf("\033[22;36m[check_raw] Both locked.\033[0m\n");
+            }
+            else{
+                printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
+                edge e = {"RAW", lastWrite[addr], rec};
+                result.push_back(e);
+            }
         }
     }
 }
@@ -98,9 +113,15 @@ VOID RecordMemRead(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     //fprintf(trace,"Thread %d read from address %p in rtn %s\n", tid, addr, (char*)rtnName);
     //outFile<<"Thread:"<<tid<<" [Read] from Addr:"<<addr<<"\tin rtn: "<<string((char*)rtnName)<<endl;
     //printf("[RecordMemRead] T: %d, ins: %p, add: %p, rtn: %s, time: %llu\n", tid, addr, ip, (char*)rtnName, timestamp);
-    
-    record rec={'R',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName)};
+    char l;
+    if(locksets[tid].size()>0)
+        l = 'L';
+    else
+        l = 'U';
+
+    record rec={'R',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName), l};
     print_record(rec, "RecordMemRead");
+
     if (logging_start){
         records.push_back(rec); //add new record
 
@@ -123,8 +144,15 @@ VOID RecordMemWrite(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     //fprintf(trace,"Thread %d write from address %p in rtn %s\n", tid, addr, (char*)rtnName);
     //printf("[RecordMemWrite] T: %d, ins: %p, add: %p, rtn: %s, time: %llu\n", tid, addr, ip, (char*)rtnName, timestamp);
     
-    record rec={'W',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName)};
+    char l;
+    if(locksets[tid].size()>0)
+        l = 'L';
+    else
+        l = 'U';
+
+    record rec={'W',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName), l};
     print_record(rec, "RecordMemWrite");
+
     if (logging_start){
         records.push_back(rec);//create new record 
 
@@ -151,14 +179,36 @@ VOID afterThreadCreate(THREADID threadid)
 
 VOID afterThreadLock(THREADID threadid, ADDRINT address)
 {
+    PIN_GetLock(&lock, threadid+1);
     timestamp++;
     printf("\033[01;33m[ThreadLock] T %d Locked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
 
+    mlock l = {threadid, timestamp, address};
+
+    locksets[threadid].push_back(l);
+    printf("\033[01;33m[ThreadLock] lockset size %d\033[0m\n", locksets[threadid].size());
+
+    PIN_ReleaseLock(&lock);
 }
 VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
 {
+    PIN_GetLock(&lock, threadid+1);
     timestamp++;
     printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+
+ 
+    
+    unsigned int i;
+    for (i=0; i<locksets[threadid].size(); i++){
+        if(locksets[threadid][i].addr == address){
+            locksets[threadid].erase(locksets[threadid].begin()+i);
+            printf("\033[01;33m[ThreadUnLock] lockset size %d\033[0m\n", locksets[threadid].size());
+        }
+    }
+
+    
+    
+    PIN_ReleaseLock(&lock);
 }
 
 VOID afterThreadBarrier(THREADID threadid)

@@ -17,7 +17,7 @@ PIN_LOCK lock;
 //global varibles
 UINT32 threadNum = 0; //number of running threads
 bool logging_start = false; //start logging the memory accessing when at least two thread exist.
-UINT64 timestamp = 0; // a global timer to mark the ordering of the operations.
+UINT64 timestamp = 1; // a global timer to mark the ordering of the operations.
 
 #define LIB_RTN_NAME_SIZE 15
 string LIB_RTN_NAME[] = {
@@ -46,6 +46,7 @@ struct record{
 	UINT32 tid; //thread id
 	UINT64 time; //time
 	string rtn; //name of the routine
+  char isLocked; // L or U, if this memory access protected by a lock
 };
 vector<record> records;
 
@@ -62,17 +63,24 @@ struct edge{
 vector<edge> result; //potential racy edges
 
 
-struct lock{
+struct mlock{ //mutex_lock
   UINT32 tid; // the thread that add this lock
   UINT64 time; // when this lock was added
-  UINT64 addr;
+  UINT64 addr; // entry address of the lock, used to distinguish the locks
 };
 
+typedef vector<mlock>  lockset; // a lockset for each thread.
+
+lockset locksets[MAX_THREAD_NUM]; // an array to hold the locksets of all the threads
+
+
+
+// Below are helper functions used
 
 void print_record(record rec, string func){
 
-	printf("[%s] Tid %d, %c, addr: 0x%llx, inst: 0x%llx, rtn: %s, time: %llu \n",
-		func.c_str(), rec.tid, rec.op, rec.addr, rec.inst, rec.rtn.c_str(), rec.time);
+	printf("[%s] Tid %d, %c, addr: 0x%llx, inst: 0x%llx, rtn: %s, time: %llu , isLocked: %c\n",
+		func.c_str(), rec.tid, rec.op, rec.addr, rec.inst, rec.rtn.c_str(), rec.time, rec.isLocked);
 }
 
 void print_edge(edge e){
