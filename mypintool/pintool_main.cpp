@@ -1,10 +1,6 @@
-#include "structs.h"
+
 #include "callbacks.h"
-#include "helperfuncs.h"
-#include <iostream>
-#include <fstream>
-#include <stdio.h>
-#include <string.h>
+
 
 
 
@@ -119,9 +115,9 @@ VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
 
     threadNum++;
     if (threadNum == 1)
-        printf("[ThreadStart] Main Thread created, total number is %d\n", threadNum);
+        printf("\033[01;34m[ThreadStart] Main Thread T 0 created, total number is %d\033[0m\n", threadNum);
     else
-        printf("[ThreadStart] Thread %d created, total number is %d\n", threadid, threadNum);
+        printf("\033[01;34m[ThreadStart] Thread %d created, total number is %d\033[0m\n", threadid, threadNum);
     
      
     PIN_ReleaseLock(&lock);
@@ -136,16 +132,15 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
     threadNum--;
     if (threadNum > 1)
     {
-        printf("[ThreadFini] Thread %d joined, total number is %d\n", threadid, threadNum);
+        printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d\033[0m\n", threadid, threadNum);
     }
     else if (threadNum == 1)
     {
-        printf("[ThreadFini] Thread %d joined, total number is %d\n", threadid, threadNum);
+        printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d, stop logging.\033[0m\n", threadid, threadNum);
         logging_start = false;
-        printf("[ThreadFini] stop logging\n");
     }
     else
-        printf("[ThreadFini] Main Thread joined, total number is %d\n", threadNum);
+        printf("\033[01;34m[ThreadFini] Main Thread joined, total number is %d\033[0m\n", threadNum);
   
     PIN_ReleaseLock(&lock);
     

@@ -1,14 +1,19 @@
+#include "structs.h"
+#include <iostream>
+#include <fstream>
+#include <stdio.h>
+#include <string.h>
 
 void update_lastRead(UINT64 addr, record rec){
 
     map<UINT64, record>::iterator ite; 
     ite=lastRead.find(addr);
     if(ite==lastRead.end()){
-        printf("[update_lastRead] Do not find 0x%llx, insert.\n", addr);
+        printf("\033[22;36m[update_lastRead] New read address 0x%llx, insert.\033[0m\n", addr);
         lastRead.insert(pair<UINT64,record>(addr,rec));
     }
     else{
-        printf("[update_lastRead] Already have 0x%llx, update.\n", addr);
+        printf("\033[22;36m[update_lastRead] Already have 0x%llx, update.\033[0m\n", addr);
         lastRead[addr]=rec;
     }
 
@@ -19,17 +24,17 @@ void update_lastWrite(UINT64 addr, record rec){
     map<UINT64, record>::iterator ite; 
     ite=lastWrite.find(addr);
     if(ite==lastWrite.end()){
-        printf("[update_lastWrite] Do not find 0x%llx, insert.\n", addr);
+        printf("\033[22;36m[update_lastWrite] New write address 0x%llx, insert.\033[0m\n", addr);
         lastWrite.insert(pair<UINT64,record>(addr,rec));
     }
     else{
-        printf("[update_lastWrite] Already have 0x%llx.\n", addr);
+        printf("\033[22;36m[update_lastWrite] Already have 0x%llx.\033[0m\n", addr);
         if (lastWrite[addr].tid == rec.tid){
             lastWrite[addr]=rec;
-            printf("[update_lastWrite] Same thread, update.\n");
+            printf("\033[22;36m[update_lastWrite] Same thread, update.\033[0m\n");
         }
         else{
-            printf("update_lastWrite] save WAW\n");
+            printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
             edge e = {"WAW", lastWrite[addr], rec};
             result.push_back(e);
         }
@@ -41,15 +46,15 @@ void check_war(UINT64 addr, record rec){
     map<UINT64, record>::iterator ite;
     ite=lastRead.find(addr);
     if(ite==lastRead.end()){
-        printf("[check_war] Do not find 0x%llx from lastRead table, skip.\n", addr);
+        printf("\033[22;36m[check_war] Do not find 0x%llx from lastRead table, skip.\033[0m\n", addr);
     }
     else{
-        printf("[check_war] Find 0x%llx from lastRead table.\n", addr);
+        printf("\033[22;36m[check_war] Find 0x%llx from lastRead table.\033[0m\n", addr);
         if (lastRead[addr].tid == rec.tid){
-            printf("[check_war] Same thread, skip.\n");
+            printf("\033[22;36m[check_war] Same thread, skip.\033[0m\n");
         }
         else{
-            printf("check_war] save WAR\n");
+            printf("\033[22;36m[check_war] save WAR.\033[0m\n");
             edge e = {"WAR", lastRead[addr], rec};
             result.push_back(e);
         }
@@ -61,15 +66,15 @@ void check_raw(UINT64 addr, record rec){
     map<UINT64, record>::iterator ite;
     ite=lastWrite.find(addr);
     if(ite==lastWrite.end()){
-        printf("[check_raw] Do not find 0x%llx from lastWrite table, skip.\n", addr);
+        printf("\033[22;36m[check_raw] Do not find 0x%llx from lastWrite table, skip.\033[0m\n", addr);
     }
     else{
-        printf("[check_raw] Find 0x%llx from lastWrite table.\n", addr);
+        printf("\033[22;36m[check_raw] Find 0x%llx from lastWrite table.\033[0m\n", addr);
         if (lastWrite[addr].tid == rec.tid){
-            printf("[check_raw] Same thread, skip.\n");
+            printf("\033[22;36m[check_raw] Same thread, skip.\033[0m\n");
         }
         else{
-            printf("check_raw] save WAR\n");
+            printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
             edge e = {"RAW", lastWrite[addr], rec};
             result.push_back(e);
         }
@@ -119,7 +124,7 @@ VOID RecordMemWrite(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     //printf("[RecordMemWrite] T: %d, ins: %p, add: %p, rtn: %s, time: %llu\n", tid, addr, ip, (char*)rtnName, timestamp);
     
     record rec={'W',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName)};
-    print_record(rec, "RecordMemRead");
+    print_record(rec, "RecordMemWrite");
     if (logging_start){
         records.push_back(rec);//create new record 
 
@@ -138,7 +143,7 @@ VOID afterThreadCreate(THREADID threadid)
     PIN_GetLock(&lock, threadid+1);
     
     logging_start = true;
-    printf("[afterThreadCreate] start logging\n");
+    printf("\033[01;34m[afterThreadCreate] start logging\033[0m\n");
     
     PIN_ReleaseLock(&lock);
     
@@ -147,36 +152,37 @@ VOID afterThreadCreate(THREADID threadid)
 VOID afterThreadLock(THREADID threadid, ADDRINT address)
 {
     timestamp++;
-    printf("[afterThreadLock] T %d Locked, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadLock] T %d Locked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+
 }
 VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
 {
     timestamp++;
-    printf("[beforeThreadUnLock] T %d Unlocked, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
 }
 
 VOID afterThreadBarrier(THREADID threadid)
 {
     timestamp++;
-    printf("[afterThreadBarrier] T %d Barrier, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadBarrier] T %d Barrier, time: %llu.\033[0m\n", threadid, timestamp);
 }
 
 VOID afterThreadCondWait(THREADID threadid)
 {
     timestamp++;
-    printf("[afterThreadCondWait] T %d Condwait, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadCondWait] T %d Condwait, time: %llu.\033[0m\n", threadid, timestamp);
 }
 
 VOID afterThreadCondTimedwait(THREADID threadid)
 {
     timestamp++;
-    printf("[afterThreadCondTimedwait] T %d CondTimewait, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadCondTimedwait] T %d CondTimewait, time: %llu.\033[0m\n", threadid, timestamp);
 }
 
 VOID afterThreadSleep(THREADID threadid)
 {
     timestamp++;
-    printf("[afterThreadSleep] T %d sleep, time: %llu.\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadSleep] T %d sleep, time: %llu.\033[0m\n", threadid, timestamp);
 }
 
 

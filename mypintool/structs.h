@@ -47,8 +47,7 @@ struct record{
 	UINT64 time; //time
 	string rtn; //name of the routine
 };
-vector<record> records;//starts from vector[0]
-UINT64 recordNum; //records number
+vector<record> records;
 
 map<UINT64,record> lastRead;  // a table records the last read to each memory address
 map<UINT64,record> lastWrite; // a table records the last write to each memory address
@@ -66,6 +65,7 @@ vector<edge> result; //potential racy edges
 struct lock{
   UINT32 tid; // the thread that add this lock
   UINT64 time; // when this lock was added
+  UINT64 addr;
 };
 
 
