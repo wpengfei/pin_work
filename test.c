@@ -9,18 +9,21 @@ int a = 0;
 
 void writing_thread(void* arg){
 	int pid = getpid();
-	printf("[writing thread] pid = %d\n", pid);
+	//printf("[writing thread] pid = %d\n", pid);
 
 	a = a + 10;
 	char *ptr;
 	ptr = malloc(16);
-	printf("[writing thread] a = %d\n", a);
+	//printf("[writing thread] a = %d\n", a);
+	
+	int b = a-1;
 }
 
 void helloFunc(){
 	char *ptr;
 	ptr = malloc(16);
-	printf("hello world\n");
+	//printf("hello world\n");
+	a++;
 }
 
 
@@ -32,6 +35,14 @@ int main(int argc, char** argv){
 	int *p;
 	p = malloc(4);
 	//printf ("p addr %x\n", p);
+	int x = 100;
+	memcpy(p,&x,4);
+
+	int y = *p;
+
+	int b = a;
+
+	a--;
 
 	ret = pthread_create(&id, NULL, (void *)writing_thread, NULL);
 	if(ret != 0){
@@ -40,12 +51,14 @@ int main(int argc, char** argv){
 
 	helloFunc();
 
-	printf("[main thread] a = %d\n", a);
+	//printf("[main thread] a = %d\n", a);
 
 	a = a + 100;
 
+
+
 	pthread_join(id,NULL);
-	printf("[main thread] writing thread joined\n");
+	//printf("[main thread] writing thread joined\n");
 
 
 	return 0;

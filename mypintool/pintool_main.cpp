@@ -1,4 +1,4 @@
-#include "definations.h"
+#include "structs.h"
 #include "callbacks.h"
 #include "helperfuncs.h"
 #include <iostream>
@@ -40,52 +40,56 @@ VOID Routine(RTN rtn, VOID *v)
 {
     
     string rtn_name = RTN_Name(rtn);
-/*
+
     PIN_GetLock(&lock,PIN_ThreadId()+1);
 
     if(rtn_name=="pthread_create"||rtn_name=="pthread_create"){
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCreate,IARG_END);
-        //RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCreate, IARG_END);
-        RTN_Close(rtn);
-    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock,IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
-        RTN_Close(rtn);
-    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){
-        RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock,IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCreate,IARG_THREAD_ID, IARG_END);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCreate, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_join"||rtn_name=="pthread_join"){
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadJoin, IARG_END);
-        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadJoin, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadJoin, IARG_THREAD_ID, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadJoin, IARG_THREAD_ID, IARG_END);
+        RTN_Close(rtn); 
+    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadLock, IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
+        RTN_Close(rtn);
+    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){
+        RTN_Open(rtn);
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
+        RTN_Close(rtn);
+    } else if(rtn_name=="__pthread_barrier_wait"||rtn_name=="pthread_barrier_wait"){
+        RTN_Open(rtn);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCondWait, IARG_END);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadBarrier, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_cond_wait"||rtn_name=="pthread_cond_wait"){
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCondWait, IARG_END);
-        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCondWait, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCondWait, IARG_END);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCondWait, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_cond_timedwait"||rtn_name=="pthread_cond_timedwait"){
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCondTimedwait, IARG_END);
-        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCondTimedwait, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadCondTimedwait, IARG_END);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadCondTimedwait, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="sleep"||rtn_name=="usleep"||rtn_name=="__sleep"||rtn_name=="__usleep"){
     //we consider thread sleep as it likes thread wait 
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadSleep, IARG_END);
-        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadSleep, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadSleep, IARG_END);
+        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadSleep, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     }
+    
 
     PIN_ReleaseLock(&lock);
     //ADDRINT rtn_addr = RTN_Address(rtn);
     
     //outFile <<"Routine name: "<<rtn_name.c_str()<<"\t Addr:"<<rtn_addr<<endl;
     
-*/    
-
 }
 
 
@@ -109,30 +113,42 @@ VOID ImageLoad(IMG img, VOID *)
 
 VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
-    // Note:  threadid+1 is used as an argument to the PIN_GetLock()
-    //        routine as a debugging aid.  This is the value that
-    //        the lock is set to, so it must be non-zero.
+
+   
     PIN_GetLock(&lock, threadid+1);
+
     threadNum++;
-    printf("[ThreadStart] Thread %d created, total number is %d\n", threadid, threadNum);
-    if (threadNum >= 2){
-        logging_start = true;
-        printf("[ThreadStart] start logging\n");
-    }
+    if (threadNum == 1)
+        printf("[ThreadStart] Main Thread created, total number is %d\n", threadNum);
+    else
+        printf("[ThreadStart] Thread %d created, total number is %d\n", threadid, threadNum);
+    
+     
     PIN_ReleaseLock(&lock);
+    
 }
 
 // This routine is executed every time a thread is destroyed.
 VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
+    
     PIN_GetLock(&lock, threadid+1);
     threadNum--;
-    printf("[ThreadFini] Thread %d joined, total number is %d\n", threadid, threadNum);
-    if (threadNum < 2){
+    if (threadNum > 1)
+    {
+        printf("[ThreadFini] Thread %d joined, total number is %d\n", threadid, threadNum);
+    }
+    else if (threadNum == 1)
+    {
+        printf("[ThreadFini] Thread %d joined, total number is %d\n", threadid, threadNum);
         logging_start = false;
         printf("[ThreadFini] stop logging\n");
     }
+    else
+        printf("[ThreadFini] Main Thread joined, total number is %d\n", threadNum);
+  
     PIN_ReleaseLock(&lock);
+    
 }
 
 // This function is called when the application exits
@@ -146,9 +162,14 @@ VOID Fini(INT32 code, VOID *v)
     //outFile.close();
 
     UINT32 i = 0;
-    for(i=0; i<recordNum; i++){
-        printf("[Fini] Thread: %d, op:%c, address: 0x%llx, instruction: 0x%llx, rtn %s, time: %llu\n", 
-            records[i].tid, records[i].op,records[i].addr, records[i].inst, records[i].rtn.c_str(), records[i].time);
+
+    printf("----------------------------records\n");
+    for(i=0; i<records.size(); i++){
+        print_record(records[i], "Fini");
+    }
+    printf("----------------------------edges\n");
+    for(i=0; i<result.size(); i++){
+        print_edge(result[i]);
     }
 
 }
