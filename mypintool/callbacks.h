@@ -4,22 +4,40 @@
 #include <stdio.h>
 #include <string.h>
 
-void update_lastRead(UINT64 addr, record rec){
+/* Check whether any sychronizations lie between two memory accesses.
+* Check by the timestamp, if sychroniztions exist, then return true.
+*/
+bool synch_exists(record first, record second){
+    assert(first.time < second.time);
+    unsigned int i=0;
 
-    map<UINT64, record>::iterator ite; 
-    ite=lastRead.find(addr);
-    if(ite==lastRead.end()){
+    for(i=0; i<synchs.size(); i++){
+        if(synchs[i].tid == second.tid && synchs[i].time < second.time && synchs[i].time > first.time)
+            return true;
+    } 
+    return false;
+
+}
+
+
+void update_reads(UINT64 addr, record rec){
+
+    map<UINT64, records_vector>::iterator ite; 
+    ite=prevReads.find(addr);
+    if(ite==prevReads.end()){
         printf("\033[22;36m[update_lastRead] New read address 0x%llx, insert.\033[0m\n", addr);
-        lastRead.insert(pair<UINT64,record>(addr,rec));
+        records_vector rv;
+        rv.push_back(rec);
+        prevReads.insert(pair<UINT64,records_vector>(addr,rv));
     }
     else{
         printf("\033[22;36m[update_lastRead] Already have 0x%llx, update.\033[0m\n", addr);
-        lastRead[addr]=rec;
+        prevReads[addr].push_back(rec);
     }
 
 }
 
-void update_lastWrite(UINT64 addr, record rec){
+void update_writes(UINT64 addr, record rec){
 
     map<UINT64, record>::iterator ite; 
     ite=lastWrite.find(addr);
@@ -35,42 +53,22 @@ void update_lastWrite(UINT64 addr, record rec){
         }
         else{
             if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
-                printf("\033[22;36m[update_lastWrite] Both locked.\033[0m\n");
+                printf("\033[22;36m[update_lastWrite] locked.\033[0m\n");
             }
             else{
-                printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
-                edge e = {"WAW", lastWrite[addr], rec};
-                result.push_back(e);
+                if(!synch_exists(lastWrite[addr],rec)){
+                    printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
+                    edge e = {"WAW", lastWrite[addr], rec};
+                    result.push_back(e);
+                }
+                else{
+                    printf("\033[22;36m[update_lastWrite] synch exists.\033[0m\n");
+                }
             }
         }
     }
 
 }
-
-void check_war(UINT64 addr, record rec){
-    map<UINT64, record>::iterator ite;
-    ite=lastRead.find(addr);
-    if(ite==lastRead.end()){
-        printf("\033[22;36m[check_war] Do not find 0x%llx from lastRead table, skip.\033[0m\n", addr);
-    }
-    else{
-        printf("\033[22;36m[check_war] Find 0x%llx from lastRead table.\033[0m\n", addr);
-        if (lastRead[addr].tid == rec.tid){
-            printf("\033[22;36m[check_war] Same thread, skip.\033[0m\n");
-        }
-        else{
-            if(lastRead[addr].isLocked == 'L' || rec.isLocked == 'L'){
-                printf("\033[22;36m[check_war] Both locked.\033[0m\n");
-            }
-            else{
-                printf("\033[22;36m[check_war] save WAR.\033[0m\n");
-                edge e = {"WAR", lastRead[addr], rec};
-                result.push_back(e);
-            }
-        }
-    }
-}
-
 
 void check_raw(UINT64 addr, record rec){
     map<UINT64, record>::iterator ite;
@@ -85,16 +83,59 @@ void check_raw(UINT64 addr, record rec){
         }
         else{
             if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
-                printf("\033[22;36m[check_raw] Both locked.\033[0m\n");
+                printf("\033[22;36m[check_raw] locked.\033[0m\n");
             }
             else{
-                printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
-                edge e = {"RAW", lastWrite[addr], rec};
-                result.push_back(e);
+                if(!synch_exists(lastWrite[addr],rec)){
+                    printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
+                    edge e = {"RAW", lastWrite[addr], rec};
+                    result.push_back(e);
+                }
+                else{
+                     printf("\033[22;36m[check_raw] synch exists.\033[0m\n");
+                }
             }
         }
     }
 }
+
+void check_war(UINT64 addr, record rec){
+    map<UINT64, records_vector>::iterator ite;
+    ite=prevReads.find(addr);
+    if(ite==prevReads.end()){
+        printf("\033[22;36m[check_war] Do not find 0x%llx from prevReads table, skip.\033[0m\n", addr);
+    }
+    else{
+        printf("\033[22;36m[check_war] Find 0x%llx from prevReads table.\033[0m\n", addr);
+        unsigned int i;
+        /*check all the previous reads whether can form war*/
+        for(i=0; i<prevReads[addr].size(); i++){
+            if (prevReads[addr][i].tid == rec.tid){
+                printf("\033[22;36m[check_war] Same thread, skip.\033[0m\n");
+            }
+            else{
+                if(prevReads[addr][i].isLocked == 'L' || rec.isLocked == 'L'){
+                    printf("\033[22;36m[check_war] locked.\033[0m\n");
+                }
+                else{
+                    if(!synch_exists(prevReads[addr][i],rec)){
+                        printf("\033[22;36m[check_war] save WAR.\033[0m\n");
+                        edge e = {"WAR", prevReads[addr][i], rec};
+                        result.push_back(e);
+                    }
+                    else{
+                        printf("\033[22;36m[check_war] synch exists.\033[0m\n");
+                    }
+                }
+            }
+
+        }   
+       
+    }
+}
+
+
+
 
 
 
@@ -125,7 +166,7 @@ VOID RecordMemRead(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     if (logging_start){
         records.push_back(rec); //add new record
 
-        update_lastRead((ADDRINT)addr, rec);
+        update_reads((ADDRINT)addr, rec);
         check_raw((ADDRINT)addr, rec); //check for RAW
     }
     PIN_ReleaseLock(&lock);
@@ -156,7 +197,7 @@ VOID RecordMemWrite(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     if (logging_start){
         records.push_back(rec);//create new record 
 
-        update_lastWrite((ADDRINT)addr, rec);//update lastWrite table and check for WAW
+        update_writes((ADDRINT)addr, rec);//update lastWrite table and check for WAW
         check_war((ADDRINT)addr, rec);//then check for WAR
     }
 
@@ -196,8 +237,6 @@ VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
     timestamp++;
     printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
 
- 
-    
     unsigned int i;
     for (i=0; i<locksets[threadid].size(); i++){
         if(locksets[threadid][i].addr == address){
@@ -205,34 +244,57 @@ VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
             printf("\033[01;33m[ThreadUnLock] lockset size %d\033[0m\n", locksets[threadid].size());
         }
     }
-
-    
-    
+  
     PIN_ReleaseLock(&lock);
 }
 
 VOID afterThreadBarrier(THREADID threadid)
 {
+    PIN_GetLock(&lock, threadid+1);
+
     timestamp++;
     printf("\033[01;33m[ThreadBarrier] T %d Barrier, time: %llu.\033[0m\n", threadid, timestamp);
+
+    synch s = {"barrier", threadid, timestamp};
+    synchs.push_back(s);
+
+    PIN_ReleaseLock(&lock);
 }
 
 VOID afterThreadCondWait(THREADID threadid)
 {
+    PIN_GetLock(&lock, threadid+1);
     timestamp++;
     printf("\033[01;33m[ThreadCondWait] T %d Condwait, time: %llu.\033[0m\n", threadid, timestamp);
+    
+    synch s = {"condwait", threadid, timestamp};
+    synchs.push_back(s);
+
+    PIN_ReleaseLock(&lock);
 }
 
 VOID afterThreadCondTimedwait(THREADID threadid)
 {
+    PIN_GetLock(&lock, threadid+1);
     timestamp++;
     printf("\033[01;33m[ThreadCondTimedwait] T %d CondTimewait, time: %llu.\033[0m\n", threadid, timestamp);
+
+    synch s = {"condtimewait", threadid, timestamp};
+    synchs.push_back(s);
+
+    PIN_ReleaseLock(&lock);
 }
 
 VOID afterThreadSleep(THREADID threadid)
 {
+    PIN_GetLock(&lock, threadid+1);
     timestamp++;
     printf("\033[01;33m[ThreadSleep] T %d sleep, time: %llu.\033[0m\n", threadid, timestamp);
+
+    synch s = {"sleep", threadid, timestamp};
+    synchs.push_back(s);
+
+    PIN_ReleaseLock(&lock);
 }
 
 

@@ -1,6 +1,7 @@
 #include "pin.H"
 #include <vector>
 #include <map>
+#include <assert.h>
 
 #define STACK_LOWERBOUND 0x40000000  //base address to load shared libraries in Linux x86
 //0xbfffffff 
@@ -17,7 +18,7 @@ PIN_LOCK lock;
 //global varibles
 UINT32 threadNum = 0; //number of running threads
 bool logging_start = false; //start logging the memory accessing when at least two thread exist.
-UINT64 timestamp = 1; // a global timer to mark the ordering of the operations.
+UINT64 timestamp = 1; //a global timer to mark the ordering of the operations.
 
 #define LIB_RTN_NAME_SIZE 15
 string LIB_RTN_NAME[] = {
@@ -50,8 +51,19 @@ struct record{
 };
 vector<record> records;
 
-map<UINT64,record> lastRead;  // a table records the last read to each memory address
-map<UINT64,record> lastWrite; // a table records the last write to each memory address
+typedef vector<record> records_vector;
+
+/* A table records all the previous reads to each memory address
+* A records vector maps to each address*/
+map<UINT64,records_vector> prevReads;  
+
+/* A table records only the last write to each memory address,
+* Here only a single record struct maps to each address.
+* Because reads do not change the memory, all the reads could pair with 
+* a later write to form a WAR, but writes change the memory, only the last
+* write can pair with a later read to RAW. Or pair with a later write to WAW.*/
+map<UINT64,record> lastWrite; 
+  
 
 
 struct edge{
@@ -74,6 +86,14 @@ typedef vector<mlock>  lockset; // a lockset for each thread.
 lockset locksets[MAX_THREAD_NUM]; // an array to hold the locksets of all the threads
 
 
+struct synch{
+  string type; //"condwait","condtimewait","sleep","barrier"
+  UINT32 tid; //the thread used this synchronization.
+  UINT64 time; //timestamp
+
+};
+
+vector<synch> synchs; //records all the synchronizations used.
 
 // Below are helper functions used
 

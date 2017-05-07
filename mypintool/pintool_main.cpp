@@ -2,8 +2,6 @@
 #include "callbacks.h"
 
 
-
-
 // Is called for every instruction and instruments reads and writes
 VOID Instruction(INS ins, VOID *v)
 {
@@ -79,12 +77,8 @@ VOID Routine(RTN rtn, VOID *v)
         RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadSleep, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn);
     }
-    
 
     PIN_ReleaseLock(&lock);
-    //ADDRINT rtn_addr = RTN_Address(rtn);
-    
-    //outFile <<"Routine name: "<<rtn_name.c_str()<<"\t Addr:"<<rtn_addr<<endl;
     
 }
 
@@ -166,7 +160,10 @@ VOID Fini(INT32 code, VOID *v)
     for(i=0; i<result.size(); i++){
         print_edge(result[i]);
     }
-
+    printf("----------------------------synchs\n");
+    for(i=0; i<synchs.size(); i++){
+        printf("[Fini] type: %s, tid: %d, time: %llu \n", synchs[i].type.c_str(), synchs[i].tid, synchs[i].time);
+    }
 }
 
 /* ===================================================================== */
