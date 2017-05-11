@@ -7,7 +7,7 @@ rm obj-ia32/pintool_main.o
 make PIN_ROOT=../pin-3.2-81205-gcc-linux/ obj-ia32/pintool_main.so
 echo ================================================
 
-time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/pintool_main.so -- ~/Desktop/pin_work/main_sweep
+time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/pintool_main.so -- ~/Desktop/pin_work/main_circular
 echo ================================================
 
 #head pinatrace.out

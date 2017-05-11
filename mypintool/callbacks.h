@@ -4,136 +4,149 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Check whether any sychronizations lie between two memory accesses.
-* Check by the timestamp, if sychroniztions exist, then return true.
-*/
-bool synch_exists(record first, record second){
+
+// Check if the two memory accesses protected by a same critical section.
+bool is_protected_by_cs(memAccess first, memAccess second){
+    assert(first.tid == second.tid);
     assert(first.time < second.time);
-    unsigned int i=0;
+    assert(first.addr == second.addr);
 
-    for(i=0; i<synchs.size(); i++){
-        if(synchs[i].tid == second.tid && synchs[i].time < second.time && synchs[i].time > first.time)
+    unsigned int i;
+    for(i=0; i<csTable.size(); i++){
+        if(first.time > csTable[i].st && first.time < csTable[i].ft
+            && second.time > csTable[i].st && second.time < csTable[i].ft
+            && first.tid == csTable[i].tid)
             return true;
-    } 
+    }
+
     return false;
-
 }
 
-
-void update_reads(UINT64 addr, record rec){
-
-    map<UINT64, records_vector>::iterator ite; 
-    ite=prevReads.find(addr);
-    if(ite==prevReads.end()){
-        printf("\033[22;36m[update_lastRead] New read address 0x%llx, insert.\033[0m\n", addr);
-        records_vector rv;
-        rv.push_back(rec);
-        prevReads.insert(pair<UINT64,records_vector>(addr,rv));
+void examine_interleaving(memAccess first, memAccess second, memAccess interleave){
+    if(interleave.time > first.time && interleave.time < second.time){
+        printf("\033[01;31m[examine_interleaving] Buggy interleaving. \033[0m\n");
+        return;
     }
-    else{
-        printf("\033[22;36m[update_lastRead] Already have 0x%llx, update.\033[0m\n", addr);
-        prevReads[addr].push_back(rec);
-    }
-
-}
-
-void update_writes(UINT64 addr, record rec){
-
-    map<UINT64, record>::iterator ite; 
-    ite=lastWrite.find(addr);
-    if(ite==lastWrite.end()){
-        printf("\033[22;36m[update_lastWrite] New write address 0x%llx, insert.\033[0m\n", addr);
-        lastWrite.insert(pair<UINT64,record>(addr,rec));
-    }
-    else{
-        printf("\033[22;36m[update_lastWrite] Already have 0x%llx.\033[0m\n", addr);
-        if (lastWrite[addr].tid == rec.tid){
-            lastWrite[addr]=rec;
-            printf("\033[22;36m[update_lastWrite] Same thread, update.\033[0m\n");
-        }
-        else{
-            if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
-                printf("\033[22;36m[update_lastWrite] locked.\033[0m\n");
-            }
-            else{
-                if(!synch_exists(lastWrite[addr],rec)){
-                    printf("\033[22;36m[update_lastWrite] save WAW.\033[0m\n");
-                    edge e = {"WAW", lastWrite[addr], rec};
-                    result.push_back(e);
-                }
-                else{
-                    printf("\033[22;36m[update_lastWrite] synch exists.\033[0m\n");
-                }
-            }
-        }
-    }
-
-}
-
-void check_raw(UINT64 addr, record rec){
-    map<UINT64, record>::iterator ite;
-    ite=lastWrite.find(addr);
-    if(ite==lastWrite.end()){
-        printf("\033[22;36m[check_raw] Do not find 0x%llx from lastWrite table, skip.\033[0m\n", addr);
-    }
-    else{
-        printf("\033[22;36m[check_raw] Find 0x%llx from lastWrite table.\033[0m\n", addr);
-        if (lastWrite[addr].tid == rec.tid){
-            printf("\033[22;36m[check_raw] Same thread, skip.\033[0m\n");
-        }
-        else{
-            if(lastWrite[addr].isLocked == 'L' || rec.isLocked == 'L'){
-                printf("\033[22;36m[check_raw] locked.\033[0m\n");
-            }
-            else{
-                if(!synch_exists(lastWrite[addr],rec)){
-                    printf("\033[22;36m[check_raw] save RAW.\033[0m\n");
-                    edge e = {"RAW", lastWrite[addr], rec};
-                    result.push_back(e);
-                }
-                else{
-                     printf("\033[22;36m[check_raw] synch exists.\033[0m\n");
-                }
-            }
-        }
-    }
-}
-
-void check_war(UINT64 addr, record rec){
-    map<UINT64, records_vector>::iterator ite;
-    ite=prevReads.find(addr);
-    if(ite==prevReads.end()){
-        printf("\033[22;36m[check_war] Do not find 0x%llx from prevReads table, skip.\033[0m\n", addr);
-    }
-    else{
-        printf("\033[22;36m[check_war] Find 0x%llx from prevReads table.\033[0m\n", addr);
+    if(interleave.time < first.time){
         unsigned int i;
-        /*check all the previous reads whether can form war*/
-        for(i=0; i<prevReads[addr].size(); i++){
-            if (prevReads[addr][i].tid == rec.tid){
-                printf("\033[22;36m[check_war] Same thread, skip.\033[0m\n");
-            }
-            else{
-                if(prevReads[addr][i].isLocked == 'L' || rec.isLocked == 'L'){
-                    printf("\033[22;36m[check_war] locked.\033[0m\n");
-                }
-                else{
-                    if(!synch_exists(prevReads[addr][i],rec)){
-                        printf("\033[22;36m[check_war] save WAR.\033[0m\n");
-                        edge e = {"WAR", prevReads[addr][i], rec};
-                        result.push_back(e);
-                    }
-                    else{
-                        printf("\033[22;36m[check_war] synch exists.\033[0m\n");
-                    }
-                }
-            }
+        for(i=0; i<synchTable.size(); i++){
+            if(synchTable[i].tid == interleave.tid 
+                && synchTable[i].time > interleave.time
+                && synchTable[i].time < first.time){
 
-        }   
-       
+                printf("\033[22;36m[examine_interleaving] Synchronization exists, skip. \033[0m\n");
+                print_synch(synchTable[i], "examine_interleaving");
+                return;
+            }
+               
+        }
+        printf("\033[01;31m[examine_interleaving] Not synched. Potential buggy interleaving. \033[0m\n");
+        return;
+    }
+    if(interleave.time > second.time){
+        unsigned int i;
+        for(i=0; i<synchTable.size(); i++){
+            if(synchTable[i].tid == interleave.tid 
+                && synchTable[i].time < interleave.time
+                && synchTable[i].time > second.time){
+
+                printf("\033[22;36m[examine_interleaving] Synchronization exists, skip. \033[0m\n");
+                print_synch(synchTable[i], "examine_interleaving");
+                return;
+            }
+                
+        }
+        printf("\033[01;31m[examine_interleaving] Not synched. Potential buggy interleaving. \033[0m\n");
+        return;
     }
 }
 
+
+// find a write from a remote thread that could interleave the local pair
+void find_interleave_write(memAccess first, memAccess second){
+    unsigned int i, j;
+
+    for(i=0; i<threadExisted; i++){
+        if(i != first.tid){
+            for(j=0; j<maTable[i].size(); j++){
+                if(maTable[i][j].op == 'W' && maTable[i][j].addr == first.addr){
+                    printf("\033[22;36m[find_interleave_write] Find remote write to the same address.\033[0m\n");
+                    print_ma(maTable[i][j],"find_interleave_write");
+                    examine_interleaving(first, second, maTable[i][j]);
+                }
+            }
+        }
+    }
+
+}
+
+// find a read from a remote thread that could interleave the local pair
+void find_interleave_read(memAccess first, memAccess second){
+    unsigned int i, j;
+
+    for(i=0; i<threadExisted; i++){
+        if(i != first.tid){
+            for(j=0; j<maTable[i].size(); j++){
+                if(maTable[i][j].op == 'R' && maTable[i][j].addr == first.addr){
+                    printf("\033[22;36m[find_interleave_read] Find remote read to the same address.\033[0m\n");
+                    print_ma(maTable[i][j],"find_interleave_read");
+                    examine_interleaving(first, second, maTable[i][j]);
+                }
+            }
+        }
+    }
+
+}
+
+
+void check_pair(memAccess first, memAccess second){
+    
+    if(is_protected_by_cs(first, second)){
+        //printf("\033[22;36m[check_pair] Access pair protected .\033[0m\n");
+        return;
+    }
+    
+    printf("\033[22;36m[check_pair] Find unprotected access pair.\033[0m\n");
+    print_ma(first, "check_pair");
+    print_ma(second, "check_pair");
+
+    if(first.op == 'R' && second.op == 'R'){
+        find_interleave_write(first, second);
+    }
+    if(first.op == 'R' && second.op == 'W'){
+        find_interleave_write(first, second);
+    }
+    if(first.op == 'W' && second.op == 'R'){
+        find_interleave_write(first, second);
+    }
+    if(first.op == 'W' && second.op == 'W'){
+        find_interleave_read(first, second);
+    }
+
+
+}
+
+
+
+// find memory access pairs from the same thread accessing the same address
+void find_same_address_accesses(){
+    bool found = false;
+    unsigned int i,j,k;
+    for(i=0; i<threadExisted; i++){
+        for(j=0; j<maTable[i].size(); j++){
+            for(k=j+1; k<maTable[i].size(); k++){
+                if(maTable[i][j].addr == maTable[i][k].addr){
+                    check_pair(maTable[i][j], maTable[i][k]);
+                    found = true;
+                }
+            }
+        }
+    }
+
+    if(!found)
+        printf("\033[22;36m[find_same_address_accesses] Did not find same address pair. \033[0m\n");
+
+}
 
 
 
@@ -154,20 +167,16 @@ VOID RecordMemRead(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     //fprintf(trace,"Thread %d read from address %p in rtn %s\n", tid, addr, (char*)rtnName);
     //outFile<<"Thread:"<<tid<<" [Read] from Addr:"<<addr<<"\tin rtn: "<<string((char*)rtnName)<<endl;
     //printf("[RecordMemRead] T: %d, ins: %p, add: %p, rtn: %s, time: %llu\n", tid, addr, ip, (char*)rtnName, timestamp);
-    char l;
-    if(locksets[tid].size()>0)
-        l = 'L';
-    else
-        l = 'U';
 
-    record rec={'R',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName), l};
-    print_record(rec, "RecordMemRead");
+
+    memAccess ma={'R',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName)};
+    print_ma(ma, "RecordMemRead");
 
     if (logging_start){
-        records.push_back(rec); //add new record
+        maTable[tid].push_back(ma); //add new record
 
-        update_reads((ADDRINT)addr, rec);
-        check_raw((ADDRINT)addr, rec); //check for RAW
+        //update_reads((ADDRINT)addr, rec);
+        //check_raw((ADDRINT)addr, rec); //check for RAW
     }
     PIN_ReleaseLock(&lock);
 }
@@ -185,20 +194,14 @@ VOID RecordMemWrite(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
     //fprintf(trace,"Thread %d write from address %p in rtn %s\n", tid, addr, (char*)rtnName);
     //printf("[RecordMemWrite] T: %d, ins: %p, add: %p, rtn: %s, time: %llu\n", tid, addr, ip, (char*)rtnName, timestamp);
     
-    char l;
-    if(locksets[tid].size()>0)
-        l = 'L';
-    else
-        l = 'U';
-
-    record rec={'W',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName), l};
-    print_record(rec, "RecordMemWrite");
+    memAccess ma={'W',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName)};
+    print_ma(ma,  "RecordMemWrite");
 
     if (logging_start){
-        records.push_back(rec);//create new record 
+        maTable[tid].push_back(ma); //add new record
 
-        update_writes((ADDRINT)addr, rec);//update lastWrite table and check for WAW
-        check_war((ADDRINT)addr, rec);//then check for WAR
+        //update_writes((ADDRINT)addr, rec);//update lastWrite table and check for WAW
+        //check_war((ADDRINT)addr, rec);//then check for WAR
     }
 
     PIN_ReleaseLock(&lock);
@@ -222,12 +225,11 @@ VOID afterThreadLock(THREADID threadid, ADDRINT address)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadLock] T %d Locked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+    printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
 
-    mlock l = {threadid, timestamp, address};
+    criticalSection cs = {threadid, address, timestamp, 0}; //use 0 by default when a critical section is not finished
 
-    locksets[threadid].push_back(l);
-    printf("\033[01;33m[ThreadLock] lockset size %d\033[0m\n", locksets[threadid].size());
+    csTable.push_back(cs);
 
     PIN_ReleaseLock(&lock);
 }
@@ -235,13 +237,12 @@ VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %llu, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
 
     unsigned int i;
-    for (i=0; i<locksets[threadid].size(); i++){
-        if(locksets[threadid][i].addr == address){
-            locksets[threadid].erase(locksets[threadid].begin()+i);
-            printf("\033[01;33m[ThreadUnLock] lockset size %d\033[0m\n", locksets[threadid].size());
+    for (i=0; i<csTable.size(); i++){
+        if(csTable[i].lockAddr == address && csTable[i].tid == threadid && csTable[i].ft == 0){
+            csTable[i].ft = timestamp;//finish the critical section
         }
     }
   
@@ -253,10 +254,10 @@ VOID afterThreadBarrier(THREADID threadid)
     PIN_GetLock(&lock, threadid+1);
 
     timestamp++;
-    printf("\033[01;33m[ThreadBarrier] T %d Barrier, time: %llu.\033[0m\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadBarrier] T %d Barrier, time: %d.\033[0m\n", threadid, timestamp);
 
     synch s = {"barrier", threadid, timestamp};
-    synchs.push_back(s);
+    synchTable.push_back(s);
 
     PIN_ReleaseLock(&lock);
 }
@@ -265,10 +266,10 @@ VOID afterThreadCondWait(THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadCondWait] T %d Condwait, time: %llu.\033[0m\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadCondWait] T %d Condwait, time: %d.\033[0m\n", threadid, timestamp);
     
     synch s = {"condwait", threadid, timestamp};
-    synchs.push_back(s);
+    synchTable.push_back(s);
 
     PIN_ReleaseLock(&lock);
 }
@@ -277,10 +278,10 @@ VOID afterThreadCondTimedwait(THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadCondTimedwait] T %d CondTimewait, time: %llu.\033[0m\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadCondTimedwait] T %d CondTimewait, time: %d.\033[0m\n", threadid, timestamp);
 
     synch s = {"condtimewait", threadid, timestamp};
-    synchs.push_back(s);
+    synchTable.push_back(s);
 
     PIN_ReleaseLock(&lock);
 }
@@ -289,17 +290,11 @@ VOID afterThreadSleep(THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadSleep] T %d sleep, time: %llu.\033[0m\n", threadid, timestamp);
+    printf("\033[01;33m[ThreadSleep] T %d sleep, time: %d.\033[0m\n", threadid, timestamp);
 
     synch s = {"sleep", threadid, timestamp};
-    synchs.push_back(s);
+    synchTable.push_back(s);
 
     PIN_ReleaseLock(&lock);
 }
 
-
-// This routine is executed each time malloc is called.
-VOID BeforeMalloc( int size, THREADID threadid )
-{
-
-}

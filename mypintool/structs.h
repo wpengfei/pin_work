@@ -14,11 +14,21 @@
 FILE * trace;
 PIN_LOCK lock;
 
+typedef unsigned int ADDRESS;
+typedef unsigned int TIME;
+typedef unsigned int COUNT;
+
 
 //global varibles
-UINT32 threadNum = 0; //number of running threads
-bool logging_start = false; //start logging the memory accessing when at least two thread exist.
-UINT64 timestamp = 1; //a global timer to mark the ordering of the operations.
+COUNT threadNum = 0; //number of running threads
+COUNT threadExisted = 0; //used to mark how many threads existed once.
+bool logging_start = false; //start logging the memory accessing when at least two threads exist.
+
+/* A global timer to mark the ordering of the operations. 
+*Use 0 to indicate a default value, which is meaningless.*/
+TIME timestamp = 1; 
+
+
 
 #define LIB_RTN_NAME_SIZE 15
 string LIB_RTN_NAME[] = {
@@ -39,75 +49,65 @@ string LIB_RTN_NAME[] = {
   "cfree"
 }; //routines from the lib, we skip memory accesses from these routines.
 
+
 // memory access record
-struct record{
+struct memAccess{
 	char op; // R or W
-	UINT64 inst; //instruction
-	UINT64 addr; //address to read or write
-	UINT32 tid; //thread id
-	UINT64 time; //time
+	ADDRESS inst; //instruction
+	ADDRESS addr; //address to read or write
+	COUNT tid; //thread id
+	TIME time; //time
 	string rtn; //name of the routine
-  char isLocked; // L or U, if this memory access protected by a lock
 };
-vector<record> records;
+typedef vector<memAccess> ma_vector; //memory access table
 
-typedef vector<record> records_vector;
-
-/* A table records all the previous reads to each memory address
-* A records vector maps to each address*/
-map<UINT64,records_vector> prevReads;  
-
-/* A table records only the last write to each memory address,
-* Here only a single record struct maps to each address.
-* Because reads do not change the memory, all the reads could pair with 
-* a later write to form a WAR, but writes change the memory, only the last
-* write can pair with a later read to RAW. Or pair with a later write to WAW.*/
-map<UINT64,record> lastWrite; 
-  
+ma_vector maTable[MAX_THREAD_NUM]; // A two dimension table for at most MAX_THREAD_NUM threads.
 
 
-struct edge{
-	string type; //RAW,WAR,WAW
-	record first;
-	record second;
+
+struct criticalSection{
+  COUNT tid; // the thread that holds this critical section
+  ADDRESS lockAddr; //entry address of the lock
+  TIME st; //start time
+  TIME ft; //finish time
 };
 
-vector<edge> result; //potential racy edges
+vector<criticalSection> csTable; //critical section table
 
-
-struct mlock{ //mutex_lock
-  UINT32 tid; // the thread that add this lock
-  UINT64 time; // when this lock was added
-  UINT64 addr; // entry address of the lock, used to distinguish the locks
-};
-
-typedef vector<mlock>  lockset; // a lockset for each thread.
-
-lockset locksets[MAX_THREAD_NUM]; // an array to hold the locksets of all the threads
 
 
 struct synch{
   string type; //"condwait","condtimewait","sleep","barrier"
-  UINT32 tid; //the thread used this synchronization.
-  UINT64 time; //timestamp
-
+  COUNT tid; //the thread used this synchronization.
+  TIME time; //timestamp
 };
 
-vector<synch> synchs; //records all the synchronizations used.
+vector<synch> synchTable; //records all the synchronizations used.
+
+//map<UINT64,records_vector> prevReads; 
+
+
+
 
 // Below are helper functions used
 
-void print_record(record rec, string func){
+void print_ma(memAccess ma, string func){
 
-	printf("[%s] Tid %d, %c, addr: 0x%llx, inst: 0x%llx, rtn: %s, time: %llu , isLocked: %c\n",
-		func.c_str(), rec.tid, rec.op, rec.addr, rec.inst, rec.rtn.c_str(), rec.time, rec.isLocked);
+	printf("[%s] Tid %d, %c, addr: 0x%x, inst: 0x%x, rtn: %s, time: %d \n",
+		func.c_str(), ma.tid, ma.op, ma.addr, ma.inst, ma.rtn.c_str(), ma.time);
+}
+void print_cs(criticalSection cs, string func){
+
+  printf("[%s] Tid %d, lockaddr: 0x%x, stime: %d, ftime:%d \n",
+    func.c_str(), cs.tid, cs.lockAddr, cs.st, cs.ft);
+}
+void print_synch(synch sy, string func){
+
+  printf("[%s] Tid %d, type: %s, time: %d\n",
+    func.c_str(), sy.tid, sy.type.c_str(), sy.time);
 }
 
-void print_edge(edge e){
-	printf("--> %s\n", e.type.c_str());
-	print_record(e.first, "-->");
-	print_record(e.second, "-->");
-}
+
 
 bool isLibRtnName(string name){
   for(int i=0;i<LIB_RTN_NAME_SIZE;++i){

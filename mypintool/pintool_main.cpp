@@ -84,22 +84,7 @@ VOID Routine(RTN rtn, VOID *v)
 
 
 
-// This routine is executed for each image.
-VOID ImageLoad(IMG img, VOID *)
-{
-    //cerr << "image load" << endl;
-    RTN rtn = RTN_FindByName(img, "malloc");
-    if ( RTN_Valid(rtn))
-    {
-        RTN_Open(rtn);
-       
-        RTN_InsertCall(rtn, IPOINT_BEFORE, AFUNPTR(BeforeMalloc),
-                       IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                       IARG_THREAD_ID, IARG_END);
 
-        RTN_Close(rtn);
-    }
-}
 
 VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
@@ -108,6 +93,7 @@ VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
     PIN_GetLock(&lock, threadid+1);
 
     threadNum++;
+    threadExisted++;
     if (threadNum == 1)
         printf("\033[01;34m[ThreadStart] Main Thread T 0 created, total number is %d\033[0m\n", threadNum);
     else
@@ -150,20 +136,27 @@ VOID Fini(INT32 code, VOID *v)
     //outFile<<"#eof"<< endl;
     //outFile.close();
 
-    UINT32 i = 0;
+    unsigned int i = 0;
+    unsigned int j = 0;
 
-    printf("----------------------------records\n");
-    for(i=0; i<records.size(); i++){
-        print_record(records[i], "Fini");
+    printf("----------------------------Memory access\n");
+    for(i=0; i<threadExisted; i++){
+        printf("Thread %d: \n",i);
+        for(j=0; j<maTable[i].size(); j++){
+            print_ma(maTable[i][j], "Fini");
+        }
     }
-    printf("----------------------------edges\n");
-    for(i=0; i<result.size(); i++){
-        print_edge(result[i]);
+    
+    printf("----------------------------Critical sections\n");
+    for(i=0; i<csTable.size(); i++){
+        print_cs(csTable[i],"Fini");
     }
-    printf("----------------------------synchs\n");
-    for(i=0; i<synchs.size(); i++){
-        printf("[Fini] type: %s, tid: %d, time: %llu \n", synchs[i].type.c_str(), synchs[i].tid, synchs[i].time);
+    printf("----------------------------Synchronizations\n");
+    for(i=0; i<synchTable.size(); i++){
+        print_synch(synchTable[i], "Fini");
     }
+    printf("============================Analysis\n");
+    find_same_address_accesses();
 }
 
 /* ===================================================================== */
@@ -202,8 +195,7 @@ int main(int argc, char * argv[])
     // Register Instruction to be called to instrument instructions
     INS_AddInstrumentFunction(Instruction, 0);
 
-    // Register ImageLoad to be called when each image is loaded.
-    IMG_AddInstrumentFunction(ImageLoad, 0);
+
 
     // Register Routine to be called to instrument rtn
     RTN_AddInstrumentFunction(Routine, 0);
