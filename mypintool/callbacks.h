@@ -21,14 +21,30 @@ bool is_protected_by_cs(memAccess first, memAccess second){
 
     return false;
 }
+void record_pattern(unsigned int p, memAccess first, memAccess second, memAccess inter){
 
+    //printf("\033[01;31m[record_pattern]:first: 0x%x, second: 0x%x,inter: 0x%x,\n",first.inst, second.inst, interleave.inst);
+    fprintf(replay_log, "%u,%u,%x,%u,%x,%u,%x\n",p,first.time, first.inst, second.time, second.inst, inter.time, inter.inst);
+
+}
+//check whether the found interleaving could cause an atomicity-violation
+//if it is buggy, then report immediatly,
 void examine_interleaving(memAccess first, memAccess second, memAccess interleave){
     if(interleave.time > first.time && interleave.time < second.time){
         printf("\033[01;31m[examine_interleaving] Buggy interleaving. \033[0m\n");
         return;
     }
+    // pattern 1:
+    //
+    //  T1     T2
+    //          I
+    //   A1
+    //   ...
+    //   A2
+    //
     if(interleave.time < first.time){
         unsigned int i;
+        // check whether a synchronization (e.g. barriar) pretents this pattern form an AV
         for(i=0; i<synchTable.size(); i++){
             if(synchTable[i].tid == interleave.tid 
                 && synchTable[i].time > interleave.time
@@ -40,11 +56,21 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
             }
                
         }
-        printf("\033[01;31m[examine_interleaving] Not synched. Potential buggy interleaving. \033[0m\n");
+        printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
+        record_pattern(1, first, second, interleave);
         return;
     }
+    //pattern 2:
+    //
+    //  T1     T2
+    //          
+    //   A1
+    //   ...
+    //   A2
+    //          I
     if(interleave.time > second.time){
         unsigned int i;
+        // check whether a synchronization (e.g. barriar) pretents this pattern form an AV
         for(i=0; i<synchTable.size(); i++){
             if(synchTable[i].tid == interleave.tid 
                 && synchTable[i].time < interleave.time
@@ -56,7 +82,8 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
             }
                 
         }
-        printf("\033[01;31m[examine_interleaving] Not synched. Potential buggy interleaving. \033[0m\n");
+        printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
+        record_pattern(2, first, second, interleave);
         return;
     }
 }
@@ -98,11 +125,12 @@ void find_interleave_read(memAccess first, memAccess second){
 
 }
 
-
+//check whether an atomic pair is interleaved by a remote access
+//we have 4 patterns that can form a atomicity-violation
 void check_pair(memAccess first, memAccess second){
     
     if(is_protected_by_cs(first, second)){
-        //printf("\033[22;36m[check_pair] Access pair protected .\033[0m\n");
+        printf("\033[22;36m[check_pair] Access pair protected by the same lock .\033[0m\n");
         return;
     }
     
@@ -122,7 +150,6 @@ void check_pair(memAccess first, memAccess second){
     if(first.op == 'W' && second.op == 'W'){
         find_interleave_read(first, second);
     }
-
 
 }
 

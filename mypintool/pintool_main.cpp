@@ -130,11 +130,7 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
 VOID Fini(INT32 code, VOID *v)
 {
     // Write to a file since cout and cerr maybe closed by the application
-    fprintf(trace, "#eof\n");
-    fclose(trace);
 
-    //outFile<<"#eof"<< endl;
-    //outFile.close();
 
     unsigned int i = 0;
     unsigned int j = 0;
@@ -157,6 +153,9 @@ VOID Fini(INT32 code, VOID *v)
     }
     printf("============================Analysis\n");
     find_same_address_accesses();
+
+    fprintf(replay_log, "#eof\n");
+    fclose(replay_log);
 }
 
 /* ===================================================================== */
@@ -185,7 +184,7 @@ int main(int argc, char * argv[])
     // Initialize symbol table code, needed for rtn instrumentation
     PIN_InitSymbols();
 
-    trace = fopen("pinatrace.out", "w");
+    replay_log = fopen("pattern_for_replay.log", "w");
 
     // Initialize pin
     if (PIN_Init(argc, argv)) return Usage();

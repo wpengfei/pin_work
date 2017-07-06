@@ -11,7 +11,7 @@
 #define MAX_THREAD_NUM 10
 
 //ofstream outFile;
-FILE * trace;
+FILE * replay_log;
 PIN_LOCK lock;
 
 typedef unsigned int ADDRESS;
