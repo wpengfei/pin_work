@@ -24,7 +24,10 @@ bool is_protected_by_cs(memAccess first, memAccess second){
 void record_pattern(unsigned int p, memAccess first, memAccess second, memAccess inter){
 
     //printf("\033[01;31m[record_pattern]:first: 0x%x, second: 0x%x,inter: 0x%x,\n",first.inst, second.inst, interleave.inst);
-    fprintf(replay_log, "%u,%u,%x,%u,%x,%u,%x\n",p,first.time, first.inst, second.time, second.inst, inter.time, inter.inst);
+    fprintf(replay_log, "Pattern %u:[%u]%u,%x,%x; [%u]%u,%x,%x; [%u]%u,%x,%x\n",
+        p,first.time, first.tid, first.inst, first.addr,
+        second.time, second.tid, second.inst, second.addr,
+        inter.time, inter.tid, inter.inst, inter.addr);
 
 }
 //check whether the found interleaving could cause an atomicity-violation
