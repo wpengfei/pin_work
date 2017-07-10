@@ -21,13 +21,78 @@ bool is_protected_by_cs(memAccess first, memAccess second){
 
     return false;
 }
-void record_pattern(unsigned int p, memAccess first, memAccess second, memAccess inter){
+
+
+
+void record_pattern(memAccess first, memAccess second, memAccess inter){
+
+    /*here determine whether these three accesses are protected by locks
+    *if not protected by locks (critical sections), then we record these accesses.
+    *otherwitse, we record the lock and unlock of each access, 
+    *which will be used to delay the access later on in the replay phase.
+    */
+
+    bool first_locked = false;
+    bool second_locked = false;
+    bool inter_locked = false;
+
+    criticalSection first_cs = {0,0,0,0};
+    criticalSection second_cs = {0,0,0,0};
+    criticalSection inter_cs = {0,0,0,0};
+
+    unsigned int i;
+    //find the critical section for First
+    for(i=0; i<csTable.size(); i++){
+        if(first.time > csTable[i].st && first.time < csTable[i].ft
+            && first.tid == csTable[i].tid){
+            first_cs.tid = csTable[i].tid;
+            first_cs.entryref = csTable[i].entryref;
+            first_locked = true;
+            break;
+        }
+            
+    }
+    //find the critical section for Second
+    for(i=0; i<csTable.size(); i++){
+        if(second.time > csTable[i].st && second.time < csTable[i].ft
+            && second.tid == csTable[i].tid){
+            second_cs.tid = csTable[i].tid;
+            second_cs.entryref = csTable[i].entryref;
+            second_locked = true;
+            break;
+        }
+            
+    }
+    //find the critical section for Inter
+    for(i=0; i<csTable.size(); i++){
+        if(inter.time > csTable[i].st && inter.time < csTable[i].ft
+            && inter.tid == csTable[i].tid){
+            inter_cs.tid = csTable[i].tid;
+            inter_cs.entryref = csTable[i].entryref;
+            inter_locked = true;
+            break;
+        }
+            
+    }
+    unsigned int locked;
+    if(first_locked && second_locked && inter_locked ){
+        locked = 1;
+        fprintf(replay_log, "%u[%u]%x,%x; [%u]%x,%x; [%u]%x,%x\n",
+            locked,first_cs.tid, first_cs.entryref, 0,
+            second_cs.tid, second_cs.entryref, 0,
+            inter_cs.tid, inter_cs.entryref, 0);
+    }
 
     //printf("\033[01;31m[record_pattern]:first: 0x%x, second: 0x%x,inter: 0x%x,\n",first.inst, second.inst, interleave.inst);
-    fprintf(replay_log, "Pattern %u:[%u]%u,%x,%x; [%u]%u,%x,%x; [%u]%u,%x,%x\n",
-        p,first.time, first.tid, first.inst, first.addr,
-        second.time, second.tid, second.inst, second.addr,
-        inter.time, inter.tid, inter.inst, inter.addr);
+    else if(!first_locked && !second_locked && !inter_locked ){
+        locked = 0;
+        fprintf(replay_log, "%u[%u]%x,%x; [%u]%x,%x; [%u]%x,%x\n",
+            locked,first.tid, first.inst, first.addr,
+            second.tid, second.inst, second.addr,
+            inter.tid, inter.inst, inter.addr);
+    }
+    else
+        assert(false);
 
 }
 //check whether the found interleaving could cause an atomicity-violation
@@ -60,7 +125,7 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
                
         }
         printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
-        record_pattern(1, first, second, interleave);
+        record_pattern(first, second, interleave);
         return;
     }
     //pattern 2:
@@ -86,7 +151,7 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
                 
         }
         printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
-        record_pattern(2, first, second, interleave);
+        record_pattern(first, second, interleave);
         return;
     }
 }
@@ -251,27 +316,29 @@ VOID afterThreadCreate(THREADID threadid)
     
 }
 
-VOID afterThreadLock(THREADID threadid, ADDRINT address)
+VOID beforeThreadLock(THREADID threadid, VOID * ip, ADDRINT entryref)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+    printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, ip: 0x%x, entryref: 0x%x.\033[0m\n", 
+        threadid, timestamp, (ADDRESS)ip, entryref);
 
-    criticalSection cs = {threadid, address, timestamp, 0}; //use 0 by default when a critical section is not finished
+    criticalSection cs = {threadid, entryref, timestamp, 0}; //use 0 by default when a critical section is not finished
 
     csTable.push_back(cs);
 
     PIN_ReleaseLock(&lock);
 }
-VOID beforeThreadUnLock(THREADID threadid, ADDRINT address)
+VOID beforeThreadUnLock(THREADID threadid, VOID * ip, ADDRINT entryref)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, addr: 0x%x.\033[0m\n", threadid, timestamp, address);
+    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, ip: 0x%x, entryref: 0x%x.\033[0m\n", 
+        threadid, timestamp, (ADDRESS)ip, entryref);
 
     unsigned int i;
     for (i=0; i<csTable.size(); i++){
-        if(csTable[i].lockAddr == address && csTable[i].tid == threadid && csTable[i].ft == 0){
+        if(csTable[i].entryref == entryref && csTable[i].tid == threadid && csTable[i].ft == 0){
             csTable[i].ft = timestamp;//finish the critical section
         }
     }

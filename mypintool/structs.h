@@ -67,7 +67,8 @@ ma_vector maTable[MAX_THREAD_NUM]; // A two dimension table for at most MAX_THRE
 
 struct criticalSection{
   COUNT tid; // the thread that holds this critical section
-  ADDRESS lockAddr; //entry address of the lock
+  //ADDRESS ip; //
+  ADDRESS entryref; //entry reference of the lock
   TIME st; //start time
   TIME ft; //finish time
 };
@@ -99,7 +100,7 @@ void print_ma(memAccess ma, string func){
 void print_cs(criticalSection cs, string func){
 
   printf("[%s] Tid %d, lockaddr: 0x%x, stime: %d, ftime:%d \n",
-    func.c_str(), cs.tid, cs.lockAddr, cs.st, cs.ft);
+    func.c_str(), cs.tid, cs.entryref, cs.st, cs.ft);
 }
 void print_synch(synch sy, string func){
 

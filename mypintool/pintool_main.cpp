@@ -47,13 +47,13 @@ VOID Routine(RTN rtn, VOID *v)
         //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadJoin, IARG_THREAD_ID, IARG_END);
         //RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadJoin, IARG_THREAD_ID, IARG_END);
         RTN_Close(rtn); 
-    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){
+    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){ //,IARG_FUNCARG_CALLSITE_REFERENCE,IARG_FUNCARG_CALLSITE_VALUE
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadLock, IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_REFERENCE, 0,IARG_END);
         RTN_Close(rtn);
-    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){
+    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){//IARG_FUNCARG_ENTRYPOINT_REFERENCE, IARG_FUNCARG_ENTRYPOINT_VALUE
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_REFERENCE, 0,IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_barrier_wait"||rtn_name=="pthread_barrier_wait"){
         RTN_Open(rtn);
