@@ -49,11 +49,11 @@ VOID Routine(RTN rtn, VOID *v)
         RTN_Close(rtn); 
     } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){ //,IARG_FUNCARG_CALLSITE_REFERENCE,IARG_FUNCARG_CALLSITE_VALUE
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_REFERENCE, 0,IARG_END);
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_ENTRYPOINT_REFERENCE, 0,IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){//IARG_FUNCARG_ENTRYPOINT_REFERENCE, IARG_FUNCARG_ENTRYPOINT_VALUE
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_REFERENCE, 0,IARG_END);
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_ENTRYPOINT_REFERENCE, 0,IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_barrier_wait"||rtn_name=="pthread_barrier_wait"){
         RTN_Open(rtn);
@@ -126,6 +126,18 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
     
 }
 
+/* If a critical section does not protect any memory access from the same thread, 
+    it is an empty cs, we should remove it*/
+bool is_cs_empty(vector<criticalSection>::iterator it){
+    unsigned int i = 0;
+    for(i=0; i < maTable[it->tid].size(); i++){
+        if (maTable[it->tid][i].time > it->st && maTable[it->tid][i].time < it->ft){
+            return false;
+        }
+    }
+
+    return true;
+}
 // This function is called when the application exits
 VOID Fini(INT32 code, VOID *v)
 {
@@ -134,6 +146,21 @@ VOID Fini(INT32 code, VOID *v)
 
     unsigned int i = 0;
     unsigned int j = 0;
+
+    //remove empty critical sections.
+    vector<criticalSection>::iterator it;
+    
+    for(it=csTable.begin();it!=csTable.end();){
+        if(it->st + 1 == it->ft){
+            it = csTable.erase(it);       
+        }
+        else if(is_cs_empty(it)){
+            it = csTable.erase(it);
+        }
+        else{
+             ++it;
+        }
+    }
 
     printf("----------------------------Memory access\n");
     for(i=0; i<threadExisted; i++){

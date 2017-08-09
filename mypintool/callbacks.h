@@ -198,7 +198,7 @@ void find_interleave_read(memAccess first, memAccess second){
 void check_pair(memAccess first, memAccess second){
     
     if(is_protected_by_cs(first, second)){
-        printf("\033[22;36m[check_pair] Access pair protected by the same lock .\033[0m\n");
+        //printf("\033[22;36m[check_pair] Access pair protected by the same lock .\033[0m\n");
         return;
     }
     
