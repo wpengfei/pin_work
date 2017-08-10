@@ -27,7 +27,7 @@ bool is_protected_by_cs(memAccess first, memAccess second){
 void record_pattern(memAccess first, memAccess second, memAccess inter){
 
     /*here determine whether these three accesses are protected by locks
-    *if not protected by locks (critical sections), then we record these accesses.
+    *if not protected by locks (critical sections), then we record these accesses directly.
     *otherwitse, we record the lock and unlock of each access, 
     *which will be used to delay the access later on in the replay phase.
     */
@@ -36,9 +36,9 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
     bool second_locked = false;
     bool inter_locked = false;
 
-    criticalSection first_cs = {0,0,0,0};
-    criticalSection second_cs = {0,0,0,0};
-    criticalSection inter_cs = {0,0,0,0};
+    criticalSection first_cs = {0,0,0,0,0};
+    criticalSection second_cs = {0,0,0,0,0};
+    criticalSection inter_cs = {0,0,0,0,0};
 
     unsigned int i;
     //find the critical section for First
@@ -46,7 +46,8 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
         if(first.time > csTable[i].st && first.time < csTable[i].ft
             && first.tid == csTable[i].tid){
             first_cs.tid = csTable[i].tid;
-            first_cs.entryref = csTable[i].entryref;
+            first_cs.call_lock_v = csTable[i].call_lock_v;
+            first_cs.call_unlock_v = csTable[i].call_unlock_v;
             first_locked = true;
             break;
         }
@@ -57,7 +58,8 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
         if(second.time > csTable[i].st && second.time < csTable[i].ft
             && second.tid == csTable[i].tid){
             second_cs.tid = csTable[i].tid;
-            second_cs.entryref = csTable[i].entryref;
+            second_cs.call_lock_v = csTable[i].call_lock_v;
+            second_cs.call_unlock_v = csTable[i].call_unlock_v;
             second_locked = true;
             break;
         }
@@ -68,7 +70,8 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
         if(inter.time > csTable[i].st && inter.time < csTable[i].ft
             && inter.tid == csTable[i].tid){
             inter_cs.tid = csTable[i].tid;
-            inter_cs.entryref = csTable[i].entryref;
+            inter_cs.call_lock_v = csTable[i].call_lock_v;
+            inter_cs.call_unlock_v = csTable[i].call_unlock_v;
             inter_locked = true;
             break;
         }
@@ -78,9 +81,9 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
     if(first_locked && second_locked && inter_locked ){
         locked = 1;
         fprintf(replay_log, "%u[%u]%x,%x; [%u]%x,%x; [%u]%x,%x\n",
-            locked,first_cs.tid, first_cs.entryref, 0,
-            second_cs.tid, second_cs.entryref, 0,
-            inter_cs.tid, inter_cs.entryref, 0);
+            locked,first_cs.tid, first_cs.call_lock_v, first_cs.call_unlock_v,
+            second_cs.tid, second_cs.call_lock_v, second_cs.call_unlock_v,
+            inter_cs.tid, inter_cs.call_lock_v, inter_cs.call_unlock_v);
     }
 
     //printf("\033[01;31m[record_pattern]:first: 0x%x, second: 0x%x,inter: 0x%x,\n",first.inst, second.inst, interleave.inst);
@@ -99,7 +102,7 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
 //if it is buggy, then report immediatly,
 void examine_interleaving(memAccess first, memAccess second, memAccess interleave){
     if(interleave.time > first.time && interleave.time < second.time){
-        printf("\033[01;31m[examine_interleaving] Buggy interleaving. \033[0m\n");
+        printf("\033[01;31m[examine_interleaving] Buggy interleaving. \033[0m\n\n");
         return;
     }
     // pattern 1:
@@ -118,13 +121,13 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
                 && synchTable[i].time > interleave.time
                 && synchTable[i].time < first.time){
 
-                printf("\033[22;36m[examine_interleaving] Synchronization exists, skip. \033[0m\n");
+                printf("\033[22;36m[examine_interleaving] Pattern 1, Synchronization exists, skip. \033[0m\n\n");
                 print_synch(synchTable[i], "examine_interleaving");
                 return;
             }
                
         }
-        printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
+        printf("\033[01;31m[examine_interleaving] Pattern 1, No synch protection. Record potential buggy pattern for replay. \033[0m\n\n");
         record_pattern(first, second, interleave);
         return;
     }
@@ -144,13 +147,13 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
                 && synchTable[i].time < interleave.time
                 && synchTable[i].time > second.time){
 
-                printf("\033[22;36m[examine_interleaving] Synchronization exists, skip. \033[0m\n");
+                printf("\033[22;36m[examine_interleaving] Pattern 2, Synchronization exists, skip. \033[0m\n\n");
                 print_synch(synchTable[i], "examine_interleaving");
                 return;
             }
                 
         }
-        printf("\033[01;31m[examine_interleaving] No synch protection. Record potential buggy pattern for replay. \033[0m\n");
+        printf("\033[01;31m[examine_interleaving] Pattern 2, No synch protection. Record potential buggy pattern for replay. \033[0m\n\n");
         record_pattern(first, second, interleave);
         return;
     }
@@ -161,6 +164,7 @@ void examine_interleaving(memAccess first, memAccess second, memAccess interleav
 void find_interleave_write(memAccess first, memAccess second){
     unsigned int i, j;
 
+    bool found = false;
     for(i=0; i<threadExisted; i++){
         if(i != first.tid){
             for(j=0; j<maTable[i].size(); j++){
@@ -168,10 +172,13 @@ void find_interleave_write(memAccess first, memAccess second){
                     printf("\033[22;36m[find_interleave_write] Find remote write to the same address.\033[0m\n");
                     print_ma(maTable[i][j],"find_interleave_write");
                     examine_interleaving(first, second, maTable[i][j]);
+                    found = true;
                 }
             }
         }
     }
+    if(!found)
+        printf("\033[22;36m[find_interleave_write] Not Find remote write to the same address.\033[0m\n");
 
 }
 
@@ -179,6 +186,7 @@ void find_interleave_write(memAccess first, memAccess second){
 void find_interleave_read(memAccess first, memAccess second){
     unsigned int i, j;
 
+    bool found = false;
     for(i=0; i<threadExisted; i++){
         if(i != first.tid){
             for(j=0; j<maTable[i].size(); j++){
@@ -186,10 +194,15 @@ void find_interleave_read(memAccess first, memAccess second){
                     printf("\033[22;36m[find_interleave_read] Find remote read to the same address.\033[0m\n");
                     print_ma(maTable[i][j],"find_interleave_read");
                     examine_interleaving(first, second, maTable[i][j]);
+                    found = true;
                 }
             }
         }
     }
+
+    if(!found)
+        printf("\033[22;36m[find_interleave_write] Not Find remote read to the same address.\033[0m\n");
+
 
 }
 
@@ -202,7 +215,7 @@ void check_pair(memAccess first, memAccess second){
         return;
     }
     
-    printf("\033[22;36m[check_pair] Find unprotected access pair.\033[0m\n");
+    printf("\033[22;36m[check_pair] Find access pair not protected by the same critical section:\033[0m\n");
     print_ma(first, "check_pair");
     print_ma(second, "check_pair");
 
@@ -219,6 +232,7 @@ void check_pair(memAccess first, memAccess second){
         find_interleave_read(first, second);
     }
 
+    return;
 }
 
 
@@ -316,31 +330,46 @@ VOID afterThreadCreate(THREADID threadid)
     
 }
 
-VOID beforeThreadLock(THREADID threadid, VOID * ip, ADDRINT entryref)
+VOID beforeThreadLock(THREADID threadid, VOID * ip, ADDRINT call_lock_v)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, ip: 0x%x, entryref: 0x%x.\033[0m\n", 
-        threadid, timestamp, (ADDRESS)ip, entryref);
+    printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, ip: 0x%x, call_lock_v: 0x%x.\033[0m\n", 
+        threadid, timestamp, (ADDRESS)ip, call_lock_v);
 
-    criticalSection cs = {threadid, entryref, timestamp, 0}; //use 0 by default when a critical section is not finished
+    criticalSection cs = {threadid, call_lock_v, 0, timestamp, 0}; //use 0 by default when a critical section is not finished
 
     csTable.push_back(cs);
 
     PIN_ReleaseLock(&lock);
 }
-VOID beforeThreadUnLock(THREADID threadid, VOID * ip, ADDRINT entryref)
+VOID beforeThreadUnLock(THREADID threadid, VOID * ip, ADDRINT call_unlock_v)
 {
     PIN_GetLock(&lock, threadid+1);
     timestamp++;
-    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, ip: 0x%x, entryref: 0x%x.\033[0m\n", 
-        threadid, timestamp, (ADDRESS)ip, entryref);
+    printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, ip: 0x%x, call_unlock_v: 0x%x.\033[0m\n", 
+        threadid, timestamp, (ADDRESS)ip, call_unlock_v);
 
     unsigned int i;
-    for (i=0; i<csTable.size(); i++){
-        if(csTable[i].entryref == entryref && csTable[i].tid == threadid && csTable[i].ft == 0){
+    bool matched = false;
+    assert(csTable.size()>0);
+    //printf("cstablesize: %d\n",csTable.size());
+    if (csTable.size() == 1){
+        if(csTable[i].tid == threadid && csTable[i].call_unlock_v == 0 && csTable[i].ft == 0){
             csTable[i].ft = timestamp;//finish the critical section
+            csTable[i].call_unlock_v = call_unlock_v;
         }
+    }
+    else{
+        for (i = csTable.size()-1; i >= 0; i--){ //critical sections can be embedded, should be processed like a stack, from back to front
+            if(csTable[i].tid == threadid && csTable[i].call_unlock_v == 0 && csTable[i].ft == 0){
+                csTable[i].ft = timestamp;//finish the critical section
+                csTable[i].call_unlock_v = call_unlock_v;
+                matched = true;
+                break;
+            }
+        }
+        assert(matched);//should always matched.
     }
   
     PIN_ReleaseLock(&lock);
