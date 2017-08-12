@@ -5,24 +5,6 @@
 #include <string.h>
 
 
-// Check if the two memory accesses protected by a same critical section.
-bool is_protected_by_cs(memAccess first, memAccess second){
-    assert(first.tid == second.tid);
-    assert(first.time < second.time);
-    assert(first.addr == second.addr);
-
-    unsigned int i;
-    for(i=0; i<csTable.size(); i++){
-        if(first.time > csTable[i].st && first.time < csTable[i].ft
-            && second.time > csTable[i].st && second.time < csTable[i].ft
-            && first.tid == csTable[i].tid)
-            return true;
-    }
-
-    return false;
-}
-
-
 
 void record_pattern(memAccess first, memAccess second, memAccess inter){
 
@@ -94,9 +76,11 @@ void record_pattern(memAccess first, memAccess second, memAccess inter){
             second.tid, second.inst, second.addr,
             inter.tid, inter.inst, inter.addr);
     }
-    else
-        assert(false);
-
+    else{
+        /*skip the situations that the three accesses of the atomicity violation are combined with locks and non-locks*/
+        printf("Conbined situation, skip it for now.\n");
+        //assert(false);
+    }
 }
 //check whether the found interleaving could cause an atomicity-violation
 //if it is buggy, then report immediatly,
@@ -206,6 +190,23 @@ void find_interleave_read(memAccess first, memAccess second){
 
 }
 
+// Check if the two memory accesses protected by a same critical section.
+bool is_protected_by_cs(memAccess first, memAccess second){
+    assert(first.tid == second.tid);
+    assert(first.time < second.time);
+    assert(first.addr == second.addr);
+
+    unsigned int i;
+    for(i=0; i<csTable.size(); i++){
+        if(first.time > csTable[i].st && first.time < csTable[i].ft
+            && second.time > csTable[i].st && second.time < csTable[i].ft
+            && first.tid == csTable[i].tid)
+            return true;
+    }
+
+    return false;
+}
+
 //check whether an atomic pair is interleaved by a remote access
 //we have 4 patterns that can form a atomicity-violation
 void check_pair(memAccess first, memAccess second){
@@ -239,8 +240,11 @@ void check_pair(memAccess first, memAccess second){
 
 // find memory access pairs from the same thread accessing the same address
 void find_same_address_accesses(){
+    
     bool found = false;
+    
     unsigned int i,j,k;
+
     for(i=0; i<threadExisted; i++){
         for(j=0; j<maTable[i].size(); j++){
             for(k=j+1; k<maTable[i].size(); k++){
@@ -251,7 +255,7 @@ void find_same_address_accesses(){
             }
         }
     }
-
+    
     if(!found)
         printf("\033[22;36m[find_same_address_accesses] Did not find same address pair. \033[0m\n");
 
