@@ -45,15 +45,19 @@ VOID Routine(RTN rtn, VOID *v)
     } else if(rtn_name=="__pthread_join"||rtn_name=="pthread_join"){
         RTN_Open(rtn);
         //RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadJoin, IARG_THREAD_ID, IARG_END);
-        //RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadJoin, IARG_THREAD_ID, IARG_END);
+        //RTN_InsertCall(rtn,IPOINT_AFTER,(AFUNPTR)afterThreadJoin, IARG_THREAD_ID, IARG_END); //IARG_UINT32
         RTN_Close(rtn); 
-    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){ //,IARG_FUNCARG_CALLSITE_REFERENCE,IARG_FUNCARG_CALLSITE_VALUE
+    } else if(rtn_name=="__pthread_mutex_lock"||rtn_name=="pthread_mutex_lock"){ 
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_VALUE, 0,IARG_END);
+        //IARG_FUNCARG_CALLSITE_REFERENCE, IARG_FUNCARG_CALLSITE_VALUE indicates different critical sections
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadLock, IARG_ADDRINT, 
+            IARG_INST_PTR, IARG_THREAD_ID, IARG_FUNCARG_CALLSITE_VALUE, 0, IARG_FUNCARG_ENTRYPOINT_VALUE, 0, IARG_END);
         RTN_Close(rtn);
-    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){//IARG_FUNCARG_ENTRYPOINT_REFERENCE, IARG_FUNCARG_ENTRYPOINT_VALUE
+    } else if(rtn_name=="__pthread_mutex_unlock"||rtn_name=="pthread_mutex_unlock"){
         RTN_Open(rtn);
-        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_THREAD_ID, IARG_INST_PTR, IARG_FUNCARG_CALLSITE_VALUE, 0,IARG_END);
+        //IARG_FUNCARG_ENTRYPOINT_REFERENCE, IARG_FUNCARG_ENTRYPOINT_VALUE indicates whether use the same lock
+        RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)beforeThreadUnLock, IARG_ADDRINT, 
+            IARG_INST_PTR, IARG_THREAD_ID, IARG_FUNCARG_CALLSITE_VALUE, 0, IARG_FUNCARG_ENTRYPOINT_VALUE, 0,IARG_END);
         RTN_Close(rtn);
     } else if(rtn_name=="__pthread_barrier_wait"||rtn_name=="pthread_barrier_wait"){
         RTN_Open(rtn);
@@ -117,7 +121,7 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
     else if (threadNum == 1)
     {
         printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d, stop logging.\033[0m\n", threadid, threadNum);
-        logging_start = false;
+        //logging_start = false;
     }
     else
         printf("\033[01;34m[ThreadFini] Main Thread joined, total number is %d\033[0m\n", threadNum);
@@ -146,8 +150,11 @@ VOID Fini(INT32 code, VOID *v)
 
     unsigned int i = 0;
     unsigned int j = 0;
+    unsigned int k = 0;
 
-    //remove empty critical sections.
+
+    /* Pre-process of the log information */
+    /* 1.remove empty critical sections.*/
     vector<criticalSection>::iterator it;
     
     for(it=csTable.begin();it!=csTable.end();){
@@ -161,7 +168,23 @@ VOID Fini(INT32 code, VOID *v)
              ++it;
         }
     }
+    /* 2. Process the memory access table, and add lock information to each memory access */
 
+    for(i=0; i<threadExisted; i++){
+        for(j=0; j<maTable[i].size(); j++){
+            for(k=csTable.size()-1; k>=0; k--){//search from rear to head
+                if(maTable[i][j].time > csTable[k].st && maTable[i][j].time < csTable[k].ft && maTable[i][j].tid == csTable[k].tid){
+                    maTable[i][j].lock_ev = csTable[k].lock_entry_v;
+                    maTable[i][j].lock_cv = csTable[k].lock_callsite_v;
+                    maTable[i][j].unlock_cv = csTable[k].unlock_callsite_v;
+                    break;
+                }
+            }
+        }
+    }
+
+
+    /* Print log information*/
     printf("----------------------------Memory access\n");
     for(i=0; i<threadExisted; i++){
         printf("Thread %d: \n",i);
@@ -178,8 +201,10 @@ VOID Fini(INT32 code, VOID *v)
     for(i=0; i<synchTable.size(); i++){
         print_synch(synchTable[i], "Fini");
     }
+    /* Start analysis */
     printf("============================Analysis\n");
-    find_same_address_accesses();
+    
+    start_anlysis();
 
     fprintf(replay_log, "#eof\n");
     fclose(replay_log);

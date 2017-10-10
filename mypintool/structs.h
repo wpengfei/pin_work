@@ -2,6 +2,7 @@
 #include <vector>
 #include <map>
 #include <assert.h>
+#include <stdint.h>
 
 #define STACK_LOWERBOUND 0x40000000  //base address to load shared libraries in Linux x86
 //0xbfffffff 
@@ -58,6 +59,11 @@ struct memAccess{
 	COUNT tid; //thread id
 	TIME time; //time
 	string rtn; //name of the routine
+  uint32_t lock_ev; //lock_entrypoint_value, indicates the lock that protects this memory access.
+
+  /*The following two values are used to distinguish different critical sections*/
+  uint32_t lock_cv; //call site value of lock. 
+  uint32_t unlock_cv; //call site value of unlock
 };
 typedef vector<memAccess> ma_vector; //memory access table
 
@@ -67,8 +73,10 @@ ma_vector maTable[MAX_THREAD_NUM]; // A two dimension table for at most MAX_THRE
 
 struct criticalSection{
   COUNT tid; // the thread that holds this critical section
-  ADDRESS call_lock_v; //call site value of lock
-  ADDRESS call_unlock_v; //call site value of unlock
+  uint32_t lock_callsite_v; //call site value of lock, callsite values used to distinguish different critical sections
+  uint32_t unlock_callsite_v; //call site value of unlock
+  uint32_t lock_entry_v; //entrypoint value of lock, entrypoint value used to check whether critical sections use the same lock
+  uint32_t unlock_entry_v; //entrypoint value of unlock
   /* three-tuple (tid, call_lock_v, call_unlock_v) can uniquely determine a critical section */
   TIME st; //start time
   TIME ft; //finish time
@@ -86,22 +94,20 @@ struct synch{
 
 vector<synch> synchTable; //records all the synchronizations used.
 
-//map<UINT64,records_vector> prevReads; 
 
 
 
-
-// Below are helper functions used
+// Below are helper functions used to print information
 
 void print_ma(memAccess ma, string func){
 
-	printf("[%s] Tid %d, %c, addr: 0x%x, inst: 0x%x, rtn: %s, time: %d \n",
-		func.c_str(), ma.tid, ma.op, ma.addr, ma.inst, ma.rtn.c_str(), ma.time);
+	printf("[%s] Tid %d, %c, addr: 0x%x, inst: 0x%x, rtn: %s, time: %d, lock_ev: 0x%x, lock_cv: 0x%x, unlock_cv: 0x%x \n",
+		func.c_str(), ma.tid, ma.op, ma.addr, ma.inst, ma.rtn.c_str(), ma.time, ma.lock_ev, ma.lock_cv, ma.unlock_cv);
 }
 void print_cs(criticalSection cs, string func){
 
-  printf("[%s] Tid %d, call_lock: 0x%x, call_unlock: 0x%x, stime: %d, ftime:%d \n",
-    func.c_str(), cs.tid, cs.call_lock_v, cs.call_unlock_v, cs.st, cs.ft);
+  printf("[%s] Tid %d, lock_cv: 0x%x, unlock_cv: 0x%x, lock_ev: 0x%x, unlock_ev: 0x%x, stime: %d, ftime:%d \n",
+    func.c_str(), cs.tid, cs.lock_callsite_v, cs.unlock_callsite_v, cs.unlock_entry_v, cs.lock_entry_v, cs.st, cs.ft);
 }
 void print_synch(synch sy, string func){
 
