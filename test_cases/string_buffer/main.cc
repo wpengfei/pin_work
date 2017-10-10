@@ -185,28 +185,41 @@ StringBuffer *buffer = new StringBuffer("abc");
  Therefore, the locks cannot guarantee atomicity.
  */
 
-void *thread_main(void *args) {
-  printf("[thread] erasing the buffer\n");
+void *thread_1(void *args) {
+  printf("[thread_1] erasing the buffer\n");
+
   buffer->erase(0, 3);
-  printf("[thread] erasing done\n");
+
+  printf("[thread_1] erasing done\n");
+  return NULL;
+}
+
+void *thread_2(void *args) {
+  StringBuffer *append_string = new StringBuffer("def");
+  StringBuffer *sb = new StringBuffer("def");
+  printf("[thread_2] appending the buffer\n");
+
+  /* Atomicity violation bug, 
+  using different locks, one from sb, one frome buffer.*/
+  sb->append(buffer); 
+
+
+  /* non-buggy, using the same lock*/
+  //buffer->append(append_string); 
+
+  printf("[thread_2] appending done\n");
+
   return NULL;
 }
 
 int main(int argc, char *argv[]) {
-  pthread_t tid;
-  pthread_create(&tid, NULL, thread_main, NULL);
+  pthread_t tid1,tid2;
+  pthread_create(&tid1, NULL, thread_1, NULL);
+  pthread_create(&tid2, NULL, thread_2, NULL);
 
-  StringBuffer *append_string = new StringBuffer("def");
-  StringBuffer *sb = new StringBuffer("def");
-  printf("[main] appending the buffer\n");
   
-  //buffer->append(append_string); // non-buggy, using the same lock
-
-  sb->append(buffer); // atomicity violation bug, using different locks, one from sb, one frome buffer.
-
-  printf("[main] appending done\n");
-
-  pthread_join(tid, NULL);
+  pthread_join(tid1, NULL);
+  pthread_join(tid2, NULL);
 
   return 0;
 }

@@ -15,10 +15,10 @@ echo ================================================
 #log_proc_sweep  
 #string_buffer
 
-time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/pintool_main.so -- ~/Desktop/pin_work/test_dir/string_buffer
+time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/pintool_main.so -- ~/Desktop/pin_work/test_dir/main
 echo ================================================
 
 make PIN_ROOT=../pin-3.2-81205-gcc-linux/  obj-ia32/replay.so
-time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/replay.so -- ~/Desktop/pin_work/test_dir/string_buffer
+time ../pin-3.2-81205-gcc-linux/pin -t obj-ia32/replay.so -- ~/Desktop/pin_work/test_dir/main
 
 #head pinatrace.out
