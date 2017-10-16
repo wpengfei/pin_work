@@ -11,6 +11,9 @@
 
 #define MAX_THREAD_NUM 10
 
+#define DEBUG_TRACING 1 //debug mode for tracing run
+#define DEBUG_REPLAY 1 //debug mode for replay run
+
 //ofstream outFile;
 FILE * replay_log;
 PIN_LOCK lock;

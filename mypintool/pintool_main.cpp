@@ -183,26 +183,27 @@ VOID Fini(INT32 code, VOID *v)
         }
     }
 
-
-    /* Print log information*/
-    printf("----------------------------Memory access\n");
-    for(i=0; i<threadExisted; i++){
-        printf("Thread %d: \n",i);
-        for(j=0; j<maTable[i].size(); j++){
-            print_ma(maTable[i][j], "Fini");
+    if (DEBUG_TRACING){
+        /* Print log information*/
+        printf("----------------------------Memory access\n");
+        for(i=0; i<threadExisted; i++){
+            printf("Thread %d: \n",i);
+            for(j=0; j<maTable[i].size(); j++){
+                print_ma(maTable[i][j], "Fini");
+            }
         }
+        
+        printf("----------------------------Critical sections\n");
+        for(i=0; i<csTable.size(); i++){
+            print_cs(csTable[i],"Fini");
+        }
+        printf("----------------------------Synchronizations\n");
+        for(i=0; i<synchTable.size(); i++){
+            print_synch(synchTable[i], "Fini");
+        }
+        /* Start analysis */
+        printf("============================Analysis\n");
     }
-    
-    printf("----------------------------Critical sections\n");
-    for(i=0; i<csTable.size(); i++){
-        print_cs(csTable[i],"Fini");
-    }
-    printf("----------------------------Synchronizations\n");
-    for(i=0; i<synchTable.size(); i++){
-        print_synch(synchTable[i], "Fini");
-    }
-    /* Start analysis */
-    printf("============================Analysis\n");
     
     start_anlysis();
 
