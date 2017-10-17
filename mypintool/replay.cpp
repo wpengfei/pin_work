@@ -1,6 +1,7 @@
 
 #include "callbacks.h"
 
+
 #define SLEEP_TIME 5
 
 unsigned int is_locked_type = 0;
@@ -45,56 +46,56 @@ VOID BeforeMemAccess(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName){
         return;
 
     if(first_ready == false && inter_ready == false && second_ready == false){
-        if((ADDRESS)ip == first_inst && (ADDRESS)addr == first_addr && (COUNT)tid == first_tid){
+        if((ADDRINT)ip == first_inst && (ADDRINT)addr == first_addr && (COUNT)tid == first_tid){
             first_ready = true;
             if(DEBUG_REPLAY){
-                printf("\033[01;34m[1][execute First] inst:%x, addr:%x, tid:%u \033[0m\n",(ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                printf("\033[01;34m[1][execute First] inst:%x, addr:%x, tid:%u \033[0m\n",(ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
             }
             return;
         }
-        else if((ADDRESS)ip == inter_inst && (ADDRESS)addr == inter_addr && (COUNT)tid == inter_tid){
+        else if((ADDRINT)ip == inter_inst && (ADDRINT)addr == inter_addr && (COUNT)tid == inter_tid){
             while(first_ready == false){ 
                 if(DEBUG_REPLAY){              
-                    printf("\033[01;33m[2][delay Inter] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                    printf("\033[01;33m[2][delay Inter] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
                 }
                 PIN_Sleep(SLEEP_TIME);
             }
             inter_ready = true;
             if(DEBUG_REPLAY){
-                printf("\033[01;34m[3][execute Inter after delay] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                printf("\033[01;34m[3][execute Inter after delay] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
             }
             return;
         }
 
     }
     else if(first_ready == true && inter_ready == false && second_ready == false){ 
-        if((ADDRESS)ip == inter_inst && (ADDRESS)addr == inter_addr && (COUNT)tid == inter_tid){
+        if((ADDRINT)ip == inter_inst && (ADDRINT)addr == inter_addr && (COUNT)tid == inter_tid){
             inter_ready = true;
             if(DEBUG_REPLAY){
-                printf("\033[01;34m[4][execute Inter] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                printf("\033[01;34m[4][execute Inter] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
             }
             return;
         }
-        else if((ADDRESS)ip == second_inst && (ADDRESS)addr == second_addr && (COUNT)tid == second_tid){
+        else if((ADDRINT)ip == second_inst && (ADDRINT)addr == second_addr && (COUNT)tid == second_tid){
             while(inter_ready == false){  
                 if(DEBUG_REPLAY){              
-                    printf("\033[01;33m[5][delay Second] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                    printf("\033[01;33m[5][delay Second] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
                 }
                 PIN_Sleep(SLEEP_TIME);
             }
             second_ready = true;
             if(DEBUG_REPLAY){
-                printf("\033[01;34m[6][execute Second after delay] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                printf("\033[01;34m[6][execute Second after delay] inst:%x, addr:%x, tid:%u \033[0m\n", (ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
             }
             return;
         }
 
     }
     else if(first_ready == true && inter_ready == true && second_ready == false){ 
-        if((ADDRESS)ip == second_inst && (ADDRESS)addr == second_addr && (COUNT)tid == second_tid){
+        if((ADDRINT)ip == second_inst && (ADDRINT)addr == second_addr && (COUNT)tid == second_tid){
             second_ready = true;
             if(DEBUG_REPLAY){
-                printf("\033[01;34m[5][execute Second] inst:%x, addr:%x, tid:%u \033[0m\n",(ADDRESS)ip,(ADDRESS)addr,(COUNT)tid);
+                printf("\033[01;34m[5][execute Second] inst:%x, addr:%x, tid:%u \033[0m\n",(ADDRINT)ip,(ADDRINT)addr,(COUNT)tid);
             }
             return;
         }
@@ -234,7 +235,7 @@ VOID Instruction(INS ins, VOID *v)
     }
 
     if(INS_IsMemoryWrite(ins)){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)BeforeMemAccess,IARG_INST_PTR,IARG_MEMORYWRITE_EA, 
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)BeforeMemAccess,IARG_INST_PTR, IARG_MEMORYWRITE_EA, 
           IARG_THREAD_ID, IARG_PTR, (VOID*)RTN_Name(rtn).c_str(), IARG_END);
     }
 

@@ -156,56 +156,79 @@ VOID Fini(INT32 code, VOID *v)
     /* Pre-process of the log information */
     /* 1.remove empty critical sections.*/
     vector<criticalSection>::iterator it;
-    
-    for(it=csTable.begin();it!=csTable.end();){
-        if(it->st + 1 == it->ft){
-            it = csTable.erase(it);       
-        }
-        else if(is_cs_empty(it)){
-            it = csTable.erase(it);
-        }
-        else{
-             ++it;
-        }
-    }
-    /* 2. Process the memory access table, and add lock information to each memory access */
 
-    for(i=0; i<threadExisted; i++){
-        for(j=0; j<maTable[i].size(); j++){
-            for(k=csTable.size()-1; k>=0; k--){//search from rear to head
-                if(maTable[i][j].time > csTable[k].st && maTable[i][j].time < csTable[k].ft && maTable[i][j].tid == csTable[k].tid){
-                    maTable[i][j].lock_ev = csTable[k].lock_entry_v;
-                    maTable[i][j].lock_cv = csTable[k].lock_callsite_v;
-                    maTable[i][j].unlock_cv = csTable[k].unlock_callsite_v;
-                    break;
+    if(csTable.size() > 0){
+    
+        for(it = csTable.begin(); it != csTable.end(); ){
+            if(it->st + 1 == it->ft){
+                it = csTable.erase(it);       
+            }
+            else if(is_cs_empty(it)){
+                it = csTable.erase(it);
+            }
+            else{
+                 ++it;
+            }
+        }       
+
+    }
+
+
+    if(csTable.size() > 0){
+        /* 2. Process the memory access table, and add lock information to each memory access */
+
+        for(i=0; i<threadExisted; i++){
+            for(j=0; j<maTable[i].size(); j++){
+                for(k=csTable.size()-1; k>=0; k--){//search from rear to head
+                    if(maTable[i][j].time > csTable[k].st && maTable[i][j].time < csTable[k].ft && maTable[i][j].tid == csTable[k].tid){
+                        maTable[i][j].lock_ev = csTable[k].lock_entry_v;
+                        maTable[i][j].lock_cv = csTable[k].lock_callsite_v;
+                        maTable[i][j].unlock_cv = csTable[k].unlock_callsite_v;
+                        break;
+                    }
                 }
             }
         }
     }
 
+
+
+
+
     if (DEBUG_TRACING){
         /* Print log information*/
+        
         printf("----------------------------Memory access\n");
+        unsigned int count = 0;
         for(i=0; i<threadExisted; i++){
             printf("Thread %d: \n",i);
             for(j=0; j<maTable[i].size(); j++){
+                printf("[%d]",count);
                 print_ma(maTable[i][j], "Fini");
+                count++;
             }
         }
         
         printf("----------------------------Critical sections\n");
+        count = 0;
         for(i=0; i<csTable.size(); i++){
+            printf("[%d]",count);
             print_cs(csTable[i],"Fini");
+            count++;
         }
+
         printf("----------------------------Synchronizations\n");
+        count = 0;
         for(i=0; i<synchTable.size(); i++){
+            printf("[%d]",count);
             print_synch(synchTable[i], "Fini");
+            count++;
         }
         /* Start analysis */
         printf("============================Analysis\n");
     }
     
-    start_anlysis();
+    //start_anlysis();
 
     fprintf(replay_log, "#eof\n");
     fclose(replay_log);

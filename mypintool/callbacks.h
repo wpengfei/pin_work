@@ -377,7 +377,7 @@ VOID beforeThreadUnLock(VOID * ip, THREADID threadid,  ADDRINT unlock_callsite_v
             csTable[i].unlock_entry_v = unlock_entry_v;
         }
     }
-    else{
+    else if (csTable.size() > 1){
         for (i = csTable.size()-1; i >= 0; i--){ //critical sections can be embedded, should be processed like a stack, from back to front
             if(csTable[i].tid == threadid && csTable[i].unlock_callsite_v == 0 && csTable[i].ft == 0){
                 csTable[i].ft = timestamp;//finish the critical section
@@ -389,6 +389,10 @@ VOID beforeThreadUnLock(VOID * ip, THREADID threadid,  ADDRINT unlock_callsite_v
         }
         assert(matched);//should always matched.
     }
+    else{
+        assert(0); // should always >= 1
+    }
+
   
     PIN_ReleaseLock(&lock);
 }

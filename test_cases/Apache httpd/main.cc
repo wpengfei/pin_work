@@ -27,12 +27,12 @@ typedef struct {
 
 typedef struct {
   unsigned int outcnt;
-  char buffer[128];
-} Data;
+  char output[128];
+} Buffer;
 
 
-Data d = {0, ""};
-Data *buf = &d;
+Buffer b = {0, ""};
+Buffer *buf = &b;
 
 
 void *ap_buffered_log_writer(void *p) {
@@ -43,23 +43,23 @@ void *ap_buffered_log_writer(void *p) {
   printf("len = %d, str = %s.\n", args->len, args->str);
 
   char *s;
-  unsigned int temp;
+  unsigned int idx;
 
   /* update log */
-  s = &(buf->buffer[buf->outcnt]);
+  idx = buf->outcnt;
+  s = &buf->output[idx];
   memcpy(s, str, len);
 
 
-  /* The update of log and update of buf->outcnt should be atomic here,
+  /* The update of buf->output and update of buf->outcnt should be atomic here,
   otherwise, it can be interleaved by another thread. The newly updated 
-  log can be overwritten by the update from another thread because the 
-  local update of buf->outcnt hasn't been finished yet. Thus, the log 
+  output can be overwritten by the update from another thread because the 
+  local update of buf->outcnt hasn't been finished yet. Thus, the buf->output 
   string mismatches the buf->outcnt.*/
 
 
-  /* update count */
-  temp = buf->outcnt + len;
-  buf->outcnt = temp;
+  /* update outcnt */
+  buf->outcnt = buf->outcnt + len;
 
   return NULL;
 }
@@ -82,12 +82,12 @@ int main(int argc, char *argv[]) {
   pthread_join(tid2, NULL);
   
   //verify result
-  if(strlen(buf->buffer) != buf->outcnt){
-    printf("Buggy. len = %d, outcnt = %d.\n", strlen(buf->buffer),buf->outcnt);
+  if(strlen(buf->output) != buf->outcnt){
+    printf("Buggy. len = %d, outcnt = %d.\n", strlen(buf->output),buf->outcnt);
     assert(0);
   }
   else{
-    printf("Exits normally. len = %d, outcnt = %d.\n", strlen(buf->buffer), buf->outcnt);
+    printf("Exits normally. len = %d, outcnt = %d.\n", strlen(buf->output), buf->outcnt);
   }
 
   
