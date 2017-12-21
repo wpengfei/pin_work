@@ -27,36 +27,43 @@ class MYSQL{
  public:
   MYSQL() {
     pthread_mutex_init(&mutex_, NULL);
+    log_index = 0;
+    count = 0;
   }
 
   ~MYSQL() {}
 
-  void write_log(const char *content) {
-    log_contents_.push_back(content);
+  void write_log(char content) {
+    log_contents_[log_index] = content;
   }
 
-  const char *get_log(int i) {
-    return log_contents_[i];
+  char get_log() {
+    return log_contents_[log_index];
   }
 
   void insert_table_entry(int key, int val) {
     //pthread_mutex_lock(&mutex_);
     Lock();
     table_contents_[key] = val;
+    count ++;
     //pthread_mutex_unlock(&mutex_);
     Unlock();
   }
 
-  void remove_table_entries() {
+  void remove_table_entries(int key) {
     //pthread_mutex_lock(&mutex_);
     Lock();
-    table_contents_.clear();
+    table_contents_[key] = 0;
+    count --;
     //pthread_mutex_unlock(&mutex_);
     Unlock();
   }
 
   bool is_table_empty() {
-    return table_contents_.empty();
+    if (count > 0) 
+      return false;
+    else
+      return true;
   }
 
  private:
@@ -64,8 +71,12 @@ class MYSQL{
   void Unlock() { pthread_mutex_unlock(&mutex_); }
 
   pthread_mutex_t mutex_;
-  std::vector<const char *> log_contents_;
-  std::map<int, int> table_contents_;
+  //std::vector<const char *> log_contents_;
+  //std::map<int, int> table_contents_;
+  int table_contents_[128];
+  char log_contents_[128];
+  int log_index;
+  int count;
 };
 
 
@@ -88,8 +99,8 @@ Buggy interleaving:
 
 void *delete_thread_main(void *args) {
   printf("removing\n");
-  mysql.remove_table_entries();
-  mysql.write_log("remove");
+  mysql.remove_table_entries(1);
+  mysql.write_log('r');
   printf("removing done\n");
   return NULL;
 }
@@ -97,7 +108,7 @@ void *delete_thread_main(void *args) {
 void *insert_thread_main(void *args) {
   printf("inserting\n");
   mysql.insert_table_entry(1, 2);
-  mysql.write_log("insert");
+  mysql.write_log( 'i');
   printf("inserting done\n");
   return NULL;
 }
@@ -112,9 +123,9 @@ int main(int argc, char *argv[]) {
 
   // validate results
   if (mysql.is_table_empty()) {
-    assert(!strcmp(mysql.get_log(0), "insert"));
+    assert(mysql.get_log()=='i');
   } else {
-    assert(!strcmp(mysql.get_log(0), "remove"));
+    assert(mysql.get_log()=='r');
   }
 
   printf("Program exit normally\n");

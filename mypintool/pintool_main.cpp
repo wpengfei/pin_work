@@ -1,4 +1,4 @@
-
+//#include "structs.h"
 #include "callbacks.h"
 
 
@@ -87,9 +87,6 @@ VOID Routine(RTN rtn, VOID *v)
 }
 
 
-
-
-
 VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
 
@@ -98,11 +95,14 @@ VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
 
     threadNum++;
     threadExisted++;
-    if (threadNum == 1)
-        printf("\033[01;34m[ThreadStart] Main Thread T 0 created, total number is %d\033[0m\n", threadNum);
-    else
-        printf("\033[01;34m[ThreadStart] Thread %d created, total number is %d\033[0m\n", threadid, threadNum);
-    
+    if (threadNum == 1){
+        if(DEBUG_TRACING)
+            printf("\033[01;34m[ThreadStart] Main Thread T 0 created, total number is %d\033[0m\n", threadNum);
+    }
+    else{
+        if(DEBUG_TRACING)
+            printf("\033[01;34m[ThreadStart] Thread %d created, total number is %d\033[0m\n", threadid, threadNum);
+    }
      
     PIN_ReleaseLock(&lock);
     
@@ -116,16 +116,19 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
     threadNum--;
     if (threadNum > 1)
     {
-        printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d\033[0m\n", threadid, threadNum);
+        if(DEBUG_TRACING)
+            printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d\033[0m\n", threadid, threadNum);
     }
     else if (threadNum == 1)
     {
-        printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d, stop logging.\033[0m\n", threadid, threadNum);
+        if(DEBUG_TRACING)
+            printf("\033[01;34m[ThreadFini] Thread %d joined, total number is %d, stop logging.\033[0m\n", threadid, threadNum);
         logging_start = false;
     }
-    else
-        printf("\033[01;34m[ThreadFini] Main Thread joined, total number is %d\033[0m\n", threadNum);
-  
+    else{
+        if(DEBUG_TRACING)
+            printf("\033[01;34m[ThreadFini] Main Thread joined, total number is %d\033[0m\n", threadNum);
+    }
     PIN_ReleaseLock(&lock);
     
 }
@@ -151,14 +154,15 @@ VOID Fini(INT32 code, VOID *v)
     unsigned int i = 0;
     unsigned int j = 0;
     unsigned int k = 0;
+    unsigned int count = 0;
 
 
     /* Pre-process of the log information */
-    /* 1.remove empty critical sections.*/
+    
     vector<criticalSection>::iterator it;
 
     if(csTable.size() > 0){
-    
+        /* 1.remove empty critical sections.*/
         for(it = csTable.begin(); it != csTable.end(); ){
             if(it->st + 1 == it->ft){
                 it = csTable.erase(it);       
@@ -179,7 +183,8 @@ VOID Fini(INT32 code, VOID *v)
 
         for(i=0; i<threadExisted; i++){
             for(j=0; j<maTable[i].size(); j++){
-                for(k=csTable.size()-1; k>=0; k--){//search from rear to head
+                k = csTable.size()-1;
+                for(k = csTable.size()-1; k > 0; k--){
                     if(maTable[i][j].time > csTable[k].st && maTable[i][j].time < csTable[k].ft && maTable[i][j].tid == csTable[k].tid){
                         maTable[i][j].lock_ev = csTable[k].lock_entry_v;
                         maTable[i][j].lock_cv = csTable[k].lock_callsite_v;
@@ -187,8 +192,14 @@ VOID Fini(INT32 code, VOID *v)
                         break;
                     }
                 }
+                if(maTable[i][j].time > csTable[0].st && maTable[i][j].time < csTable[0].ft && maTable[i][j].tid == csTable[0].tid){
+                        maTable[i][j].lock_ev = csTable[0].lock_entry_v;
+                        maTable[i][j].lock_cv = csTable[0].lock_callsite_v;
+                        maTable[i][j].unlock_cv = csTable[0].unlock_callsite_v;
+                }
             }
         }
+
     }
 
 
@@ -199,7 +210,8 @@ VOID Fini(INT32 code, VOID *v)
         /* Print log information*/
         
         printf("----------------------------Memory access\n");
-        unsigned int count = 0;
+        
+        
         for(i=0; i<threadExisted; i++){
             printf("Thread %d: \n",i);
             for(j=0; j<maTable[i].size(); j++){
@@ -208,7 +220,7 @@ VOID Fini(INT32 code, VOID *v)
                 count++;
             }
         }
-        
+       
         printf("----------------------------Critical sections\n");
         count = 0;
         for(i=0; i<csTable.size(); i++){
@@ -219,19 +231,45 @@ VOID Fini(INT32 code, VOID *v)
 
         printf("----------------------------Synchronizations\n");
         count = 0;
-        for(i=0; i<synchTable.size(); i++){
+        for(j=0; j<synchTable.size(); j++){
             printf("[%d]",count);
-            print_synch(synchTable[i], "Fini");
+            print_synch(synchTable[j], "Fini");
             count++;
         }
-        /* Start analysis */
-        printf("============================Analysis\n");
+        
     }
     
+    /* Start analysis */
+    printf("============================Analysis\n");
     //start_anlysis();
+
+    Json::Value root;
+    Json::StreamWriterBuilder builder;
+    std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
+
+
+
+    Json::Value record;
+    record["op"]='w';
+    record["addr"]=0x11111111;
+    root.append(record);
+
+    std::cout<<Json::writeString(builder, root)<<std::endl;
+
+    writer->write(record, &std::cout);
+    std::cout << std::endl;
+
+    ofstream ofs;
+    ofs.open("myjson.json");
+    //ofs<<json_file;
+
+
+
+    fprintf(replay_log, "s\n");
 
     fprintf(replay_log, "#eof\n");
     fclose(replay_log);
+
 }
 
 /* ===================================================================== */

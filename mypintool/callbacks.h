@@ -1,4 +1,5 @@
 #include "structs.h"
+#include <memory>
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
@@ -232,20 +233,6 @@ void start_anlysis(){
                         print_ma(maTable[i][k], "Second");
                     }
 
-                    /* maTable[i][j] == first,   maTable[i][k] == second */
-                    /*
-                    if(maTable[i][j].op == 'R' && maTable[i][k].op == 'R'){
-                        find_interleave_write(maTable[i][j], maTable[i][k]);
-                    }
-                    if(maTable[i][j].op == 'R' && maTable[i][k].op == 'W'){
-                        find_interleave_write(maTable[i][j], maTable[i][k]);
-                    }
-                    if(maTable[i][j].op == 'W' && maTable[i][k].op == 'R'){
-                        find_interleave_write(maTable[i][j], maTable[i][k]);
-                    }
-                    if(maTable[i][j].op == 'W' && maTable[i][k].op == 'W'){
-                        find_interleave_read(maTable[i][j], maTable[i][k]);
-                    }*/
                     
                     if(maTable[i][j].op == 'R'){
                         if(maTable[i][k].op == 'R')

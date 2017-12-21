@@ -3,6 +3,8 @@
 #include <map>
 #include <assert.h>
 #include <stdint.h>
+#include <json/json.h>
+#include <memory>
 
 #define STACK_LOWERBOUND 0x40000000  //base address to load shared libraries in Linux x86
 //0xbfffffff 
@@ -13,6 +15,8 @@
 
 #define DEBUG_TRACING 0  //debug mode for tracing run
 #define DEBUG_REPLAY  0  //debug mode for replay run
+
+//#define JSON_DLL
 
 //ofstream outFile;
 FILE * replay_log;
