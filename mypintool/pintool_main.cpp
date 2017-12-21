@@ -245,7 +245,7 @@ VOID Fini(INT32 code, VOID *v)
 
     Json::Value root;
     Json::StreamWriterBuilder builder;
-    std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
+    //std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
 
 
 
@@ -256,7 +256,7 @@ VOID Fini(INT32 code, VOID *v)
 
     std::cout<<Json::writeString(builder, root)<<std::endl;
 
-    writer->write(record, &std::cout);
+    //writer->write(record, &std::cout);
     std::cout << std::endl;
 
     ofstream ofs;
