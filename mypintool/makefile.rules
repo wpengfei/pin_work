@@ -183,3 +183,11 @@ $(OBJDIR)thread_app$(EXE_SUFFIX): thread_$(OS_TYPE).c
 	$(APP_CC) $(APP_CXXFLAGS) $(COMP_EXE)$@ $< $(APP_LDFLAGS) $(APP_LIBS)
 
 TOOL_CXXFLAGS := -fpermissive --std=c++11 -I /usr/include/jsoncpp/ $(TOOL_CXXFLAGS)
+
+TOOL_LDFLAGS := $(TOOL_LDFLAGS) -Wl,--whole-archive
+
+#TOOL_LPATHS := $(TOOL_LPATHS) -L/usr/lib/i386-linux-gnu
+
+TOOL_LIBS := $(TOOL_LIBS) -Wl,--whole-archive -l:libjsoncpp.a
+#TOOL_LIBS := $(TOOL_LIBS) -Wl,--whole-archive -ljsoncpp
+
