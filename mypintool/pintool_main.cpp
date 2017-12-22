@@ -254,13 +254,13 @@ VOID Fini(INT32 code, VOID *v)
     record["addr"]=0x11111111;
     root.append(record);
 
-    std::cout<<Json::writeString(builder, root)<<std::endl;
+    //std::cout<<Json::writeString(builder, root)<<std::endl;
 
     //writer->write(record, &std::cout);
-    std::cout << std::endl;
 
-    ofstream ofs;
-    ofs.open("myjson.json");
+
+    //ofstream ofs;
+    //ofs.open("myjson.json");
     //ofs<<json_file;
 
 
