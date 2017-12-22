@@ -257,7 +257,7 @@ VOID Fini(INT32 code, VOID *v)
     //std::cout<<Json::writeString(builder, root)<<std::endl;
 
     //writer->write(record, &std::cout);
-    //std::cout << std::endl;
+
 
     //ofstream ofs;
     //ofs.open("myjson.json");
