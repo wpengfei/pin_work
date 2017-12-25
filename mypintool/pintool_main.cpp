@@ -244,15 +244,15 @@ VOID Fini(INT32 code, VOID *v)
     //start_anlysis();
 
     Json::Value root;
-    Json::StreamWriterBuilder builder;
+    //Json::StreamWriterBuilder builder;
     //std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
 
 
 
-    Json::Value record;
-    record["op"]='w';
-    record["addr"]=0x11111111;
-    root.append(record);
+    //Json::Value record;
+    //record["op"]='w';
+    //record["addr"]=0x11111111;
+    //root.append(record);
 
     //std::cout<<Json::writeString(builder, root)<<std::endl;
 
