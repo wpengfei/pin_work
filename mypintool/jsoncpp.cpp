@@ -4186,7 +4186,9 @@ Value& Path::make(Value& root) const {
 #else
 #include <cmath>
 #if !(defined(__QNXNTO__)) // QNX already defines isfinite
+#ifndef isfinite
 #define isfinite std::isfinite
+#endif
 #endif
 #endif
 
