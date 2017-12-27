@@ -1,3 +1,4 @@
+#include "pin.H"
 #include "structs.h"
 #include <iostream>
 #include <fstream>

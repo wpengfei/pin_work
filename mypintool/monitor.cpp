@@ -1,7 +1,202 @@
-//#include "structs.h"
-#include "callbacks.h"
+#include "pin.H"
+#include "structs.h"
+#include <iostream>
+#include <fstream>
 
 
+
+// Print a memory read record
+VOID RecordMemRead(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
+{
+    if((unsigned int)addr > STACK_LOWERBOUND)
+        return;
+
+    PIN_GetLock(&lock,tid+1);
+
+    timestamp++;
+
+
+    //memAccess ma={'R',(ADDRINT)ip, (ADDRINT)addr, tid, timestamp, string((char*)rtnName), 0, 0, 0};
+
+ 	if (logging_start){
+
+	    fprintf(file_mem_access, "tid:%d,op:%c,time:%d,ip:0x%x,addr:0x%x,rtn:%s\n", tid, 'R', timestamp, (unsigned int)ip, (unsigned int)addr, (char*)rtnName);
+	}
+
+
+    PIN_ReleaseLock(&lock);
+}
+
+// Print a memory write record
+VOID RecordMemWrite(VOID * ip, VOID * addr, THREADID tid, VOID* rtnName)
+{
+    if((unsigned int)addr > STACK_LOWERBOUND)
+        return;
+
+    PIN_GetLock(&lock,tid+1);
+    
+    timestamp++;
+ 
+    if (logging_start){
+    	fprintf(file_mem_access, "tid:%d,op:%c,time:%d,ip:0x%x,addr:0x%x,rtn:%s\n", tid, 'W', timestamp, (unsigned int)ip, (unsigned int)addr, (char*)rtnName);
+    }
+
+    PIN_ReleaseLock(&lock);
+}
+
+
+
+VOID afterThreadCreate(THREADID threadid)
+{
+
+    PIN_GetLock(&lock, threadid+1);
+    
+    logging_start = true;
+
+    if(DEBUG_TRACING){
+        printf("\033[01;34m[afterThreadCreate] start logging\033[0m\n");
+    }
+
+    PIN_ReleaseLock(&lock);
+    
+}
+
+VOID beforeThreadLock(VOID * ip, THREADID tid,  ADDRINT lock_callsite_v, ADDRINT lock_entry_v)
+{
+    PIN_GetLock(&lock, tid+1);
+    timestamp++;
+
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadLock] T %d Locked, time: %d, ip: 0x%x, lock_callsite_v: 0x%x, lock_entry_v: 0x%x.\033[0m\n", 
+        tid, timestamp, (ADDRESS)ip, lock_callsite_v, lock_entry_v);
+    }
+
+    fprintf(file_lock, "tid:%d,op:%c,time:%d,callsite_v:0x%x,entry_v:0x%x\n", 
+    		tid, 'L', timestamp, (unsigned int)lock_callsite_v, (unsigned int)lock_entry_v);
+
+
+
+    //criticalSection cs = {threadid, lock_callsite_v, 0, lock_entry_v, 0, timestamp, 0}; //use 0 by default when a critical section is not finished
+
+    //csTable.push_back(cs);
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID beforeThreadUnLock(VOID * ip, THREADID tid,  ADDRINT unlock_callsite_v, ADDRINT unlock_entry_v)
+{
+    PIN_GetLock(&lock, tid+1);
+    timestamp++;
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadUnLock] T %d Unlocked, time: %d, ip: 0x%x, unlock_callsite_v: 0x%x, unlock_entry_v: 0x%x.\033[0m\n", 
+        tid, timestamp, (ADDRESS)ip, unlock_callsite_v, unlock_entry_v);
+    }
+
+    fprintf(file_lock, "tid:%d,op:%c,time:%d,callsite_v:0x%x,entry_v:0x%x\n", 
+    		tid, 'U', timestamp, (unsigned int)unlock_callsite_v, (unsigned int)unlock_entry_v);
+
+/*
+    unsigned int i;
+    bool matched = false;
+    assert(csTable.size()>0);
+    //printf("cstablesize: %d\n",csTable.size());
+    if (csTable.size() == 1){
+        if(csTable[i].tid == threadid && csTable[i].unlock_callsite_v == 0 && csTable[i].ft == 0){
+            csTable[i].ft = timestamp;//finish the critical section
+            csTable[i].unlock_callsite_v = unlock_callsite_v;
+            csTable[i].unlock_entry_v = unlock_entry_v;
+        }
+    }
+    else if (csTable.size() > 1){
+        for (i = csTable.size()-1; i >= 0; i--){ //critical sections can be embedded, should be processed like a stack, from back to front
+            if(csTable[i].tid == threadid && csTable[i].unlock_callsite_v == 0 && csTable[i].ft == 0){
+                csTable[i].ft = timestamp;//finish the critical section
+                csTable[i].unlock_callsite_v = unlock_callsite_v;
+                csTable[i].unlock_entry_v = unlock_entry_v;
+                matched = true;
+                break;
+            }
+        }
+        assert(matched);//should always matched.
+    }
+    else{
+        assert(0); // should always >= 1
+    }
+*/
+  
+    PIN_ReleaseLock(&lock);
+}
+
+VOID afterThreadBarrier(THREADID tid)
+{
+    PIN_GetLock(&lock, tid+1);
+
+    timestamp++;
+
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadBarrier] T %d Barrier, time: %d.\033[0m\n", tid, timestamp);
+    }
+
+    fprintf(file_sync, "tid:%d,type:%s,time:%d\n", tid, "barrier", timestamp);
+
+    //synch s = {"barrier", threadid, timestamp};
+    //synchTable.push_back(s);
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID afterThreadCondWait(THREADID tid)
+{
+    PIN_GetLock(&lock, tid+1);
+    timestamp++;
+
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadCondWait] T %d Condwait, time: %d.\033[0m\n", tid, timestamp);
+    }
+
+    fprintf(file_sync, "tid:%d,type:%s,time:%d\n", tid, "condwait", timestamp);
+
+    //synch s = {"condwait", threadid, timestamp};
+    //synchTable.push_back(s);
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID afterThreadCondTimedwait(THREADID tid)
+{
+    PIN_GetLock(&lock, tid+1);
+    timestamp++;
+
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadCondTimedwait] T %d CondTimewait, time: %d.\033[0m\n", tid, timestamp);
+    }
+
+    fprintf(file_sync, "tid:%d,type:%s,time:%d\n", tid, "condtimewait", tid);
+    //synch s = {"condtimewait", threadid, timestamp};
+    //synchTable.push_back(s);
+
+    PIN_ReleaseLock(&lock);
+}
+
+VOID afterThreadSleep(THREADID tid)
+{
+    PIN_GetLock(&lock, tid+1);
+    timestamp++;
+    
+    if(DEBUG_TRACING){
+        printf("\033[01;33m[ThreadSleep] T %d sleep, time: %d.\033[0m\n", tid, timestamp);
+    }
+
+    fprintf(file_sync, "tid:%d,type:%s,time:%d\n", tid, "sleep", tid);
+
+    //synch s = {"sleep", threadid, timestamp};
+    //synchTable.push_back(s);
+
+    PIN_ReleaseLock(&lock);
+}
+
+
+//--------------------------------------------------------------------------------------------------------------
 // Is called for every instruction and instruments reads and writes
 VOID Instruction(INS ins, VOID *v)
 {
@@ -28,6 +223,7 @@ VOID Instruction(INS ins, VOID *v)
     }
 
 }
+
 
 // Pin calls this function every time a new rtn is executed
 VOID Routine(RTN rtn, VOID *v)
@@ -133,121 +329,21 @@ VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
     
 }
 
-/* If a critical section does not protect any memory access from the same thread, 
-    it is an empty cs, we should remove it*/
-bool is_cs_empty(vector<criticalSection>::iterator it){
-    unsigned int i = 0;
-    for(i=0; i < maTable[it->tid].size(); i++){
-        if (maTable[it->tid][i].time > it->st && maTable[it->tid][i].time < it->ft){
-            return false;
-        }
-    }
-
-    return true;
-}
 // This function is called when the application exits
 VOID Fini(INT32 code, VOID *v)
 {
-    // Write to a file since cout and cerr maybe closed by the application
-
-
-    unsigned int i = 0;
-    unsigned int j = 0;
-    unsigned int k = 0;
-    unsigned int count = 0;
-
-
-    /* Pre-process of the log information */
-    
-    vector<criticalSection>::iterator it;
-
-    if(csTable.size() > 0){
-        /* 1.remove empty critical sections.*/
-        for(it = csTable.begin(); it != csTable.end(); ){
-            if(it->st + 1 == it->ft){
-                it = csTable.erase(it);       
-            }
-            else if(is_cs_empty(it)){
-                it = csTable.erase(it);
-            }
-            else{
-                 ++it;
-            }
-        }       
-
-    }
-
-
-    if(csTable.size() > 0){
-        /* 2. Process the memory access table, and add lock information to each memory access */
-
-        for(i=0; i<threadExisted; i++){
-            for(j=0; j<maTable[i].size(); j++){
-                k = csTable.size()-1;
-                for(k = csTable.size()-1; k > 0; k--){
-                    if(maTable[i][j].time > csTable[k].st && maTable[i][j].time < csTable[k].ft && maTable[i][j].tid == csTable[k].tid){
-                        maTable[i][j].lock_ev = csTable[k].lock_entry_v;
-                        maTable[i][j].lock_cv = csTable[k].lock_callsite_v;
-                        maTable[i][j].unlock_cv = csTable[k].unlock_callsite_v;
-                        break;
-                    }
-                }
-                if(maTable[i][j].time > csTable[0].st && maTable[i][j].time < csTable[0].ft && maTable[i][j].tid == csTable[0].tid){
-                        maTable[i][j].lock_ev = csTable[0].lock_entry_v;
-                        maTable[i][j].lock_cv = csTable[0].lock_callsite_v;
-                        maTable[i][j].unlock_cv = csTable[0].unlock_callsite_v;
-                }
-            }
-        }
-
-    }
+	//unsigned int i = 0;
+    //unsigned int j = 0;
 
 
 
-
-
-    if (DEBUG_TRACING){
-        /* Print log information*/
-        
-        printf("----------------------------Memory access\n");
-        
-        
-        for(i=0; i<threadExisted; i++){
-            printf("Thread %d: \n",i);
-            for(j=0; j<maTable[i].size(); j++){
-                printf("[%d]",count);
-                print_ma(maTable[i][j], "Fini");
-                count++;
-            }
-        }
-       
-        printf("----------------------------Critical sections\n");
-        count = 0;
-        for(i=0; i<csTable.size(); i++){
-            printf("[%d]",count);
-            print_cs(csTable[i],"Fini");
-            count++;
-        }
-
-        printf("----------------------------Synchronizations\n");
-        count = 0;
-        for(j=0; j<synchTable.size(); j++){
-            printf("[%d]",count);
-            print_synch(synchTable[j], "Fini");
-            count++;
-        }
-        
-    }
-    
-    /* Start analysis */
-    printf("============================Analysis\n");
-    //start_anlysis();
-
-
-    fprintf(replay_log, "#eof\n");
-    fclose(replay_log);
+    //fprintf(file_mem_access, "#eof\n");
+    fclose(file_lock);
+    fclose(file_sync);
 
 }
+
+
 
 /* ===================================================================== */
 /* Print Help Message                                                    */
@@ -275,7 +371,9 @@ int main(int argc, char * argv[])
     // Initialize symbol table code, needed for rtn instrumentation
     PIN_InitSymbols();
 
-    replay_log = fopen("pattern_for_replay.log", "w");
+    file_mem_access = fopen("file_mem_access.log", "w");
+	file_lock = fopen("file_lock.log", "w");
+	file_sync = fopen("file_sync.log", "w");
 
     // Initialize pin
     if (PIN_Init(argc, argv)) return Usage();

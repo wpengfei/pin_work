@@ -1,10 +1,9 @@
-#include "pin.H"
 #include <vector>
 #include <map>
 #include <assert.h>
 #include <stdint.h>
-#include <json/json.h>
-#include <memory>
+
+
 
 #define STACK_LOWERBOUND 0x40000000  //base address to load shared libraries in Linux x86
 //0xbfffffff 
@@ -20,6 +19,10 @@
 
 //ofstream outFile;
 FILE * replay_log;
+FILE * file_mem_access;
+FILE * file_lock;
+FILE * file_sync;
+
 PIN_LOCK lock;
 
 typedef unsigned int ADDRESS;
